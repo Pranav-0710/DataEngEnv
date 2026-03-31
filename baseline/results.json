@@ -1,23 +1,5 @@
 [
-  {
-    "task_id": 1,
-    "name": "column_rename_bug",
-    "difficulty": "easy",
-    "score": 1.0,
-    "steps": 3
-  },
-  {
-    "task_id": 2,
-    "name": "dirty_data",
-    "difficulty": "medium",
-    "score": 1.0,
-    "steps": 15
-  },
-  {
-    "task_id": 3,
-    "name": "data_leakage",
-    "difficulty": "hard",
-    "score": 1.0,
-    "steps": 15
-  }
+  {"task_id": 1, "name": "column_rename_bug", "difficulty": "easy", "score": 1.0, "steps": 3},
+  {"task_id": 2, "name": "dirty_data", "difficulty": "medium", "score": 1.0, "steps": 15},
+  {"task_id": 3, "name": "data_leakage", "difficulty": "hard", "score": 1.0, "steps": 15}
 ]
