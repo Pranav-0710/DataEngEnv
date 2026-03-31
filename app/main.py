@@ -46,6 +46,10 @@ async def startup_event():
     except Exception as e:
         print(f"Warning: A task failed to load during startup validation: {e}")
 
+@app.get("/")
+def root():
+    return {"status": "ok", "env": "DataEngEnv", "version": "1.0.0", 
+            "docs": "/docs", "health": "/health", "tasks": "/tasks"}
 @app.post("/reset", response_model=Observation | ErrorResponse)
 async def api_reset(req: TaskIdRequest):
     try:
