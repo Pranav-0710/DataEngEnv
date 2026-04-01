@@ -21,7 +21,7 @@ app.add_middleware(
 env = DataEngEnvironment()
 
 class TaskIdRequest(BaseModel):
-    task_id: int
+    task_id: int | None = 1
 
 class ErrorResponse(BaseModel):
     error: str
@@ -51,9 +51,10 @@ def root():
     return {"status": "ok", "env": "DataEngEnv", "version": "1.0.0", 
             "docs": "/docs", "health": "/health", "tasks": "/tasks"}
 @app.post("/reset", response_model=Observation | ErrorResponse)
-async def api_reset(req: TaskIdRequest):
+async def api_reset(req: TaskIdRequest | None = None):
     try:
-        return env.reset(req.task_id)
+        tid = req.task_id if req is not None and req.task_id is not None else 1
+        return env.reset(tid)
     except Exception as e:
         return ErrorResponse(error=str(e))
 
@@ -101,11 +102,12 @@ async def api_tasks():
         return ErrorResponse(error=str(e))
 
 @app.post("/grader", response_model=Reward | ErrorResponse)
-async def api_grader(req: TaskIdRequest):
+async def api_grader(req: TaskIdRequest | None = None):
     try:
-        if req.task_id != env.current_task_id:
+        tid = req.task_id if req is not None and req.task_id is not None else env.current_task_id
+        if tid != env.current_task_id:
             return ErrorResponse(error="task_id mismatch — call /reset with this task_id first")
-        return env.submit_grader(req.task_id)
+        return env.submit_grader(tid)
     except Exception as e:
         return ErrorResponse(error=str(e))
 
