@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "dataengenv"
+version = "1.0.0"
+description = "ML Data Pipeline Debugger - OpenEnv Environment"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.111.0",
+    "uvicorn",
+    "pydantic>=2.7.1",
+    "pandas",
+    "scikit-learn",
+    "numpy",
+    "openai",
+    "pyyaml",
+    "httpx",
+    "groq",
+]
+
+[project.urls]
+Homepage = "https://huggingface.co/spaces/CoBeDigger/DataEngEnv"
