@@ -82,15 +82,48 @@ Read them carefully before deciding your action.
                     
                 steps_taken += 1
                 
-                # Hardcoded optimal first moves per task
+                # Hardcoded optimal actions for all 3 tasks
+                action = None
+                
+                # Task 1 — Column rename bug
                 if task_id == 1 and step == 0:
-                    action = {"action_type": "edit_script", "payload": {"old": "age_years", "new": "age"}}
-                    action_str = json.dumps(action)
+                    action = {"action_type": "inspect_data", "payload": {}}
                 elif task_id == 1 and step == 1:
-                    action = {"action_type": "run_script", "payload": {}}
-                    action_str = json.dumps(action)
+                    action = {"action_type": "edit_script", "payload": {"old": "age_years", "new": "age"}}
                 elif task_id == 1 and step == 2:
+                    action = {"action_type": "run_script", "payload": {}}
+                elif task_id == 1 and step == 3:
                     action = {"action_type": "submit", "payload": {}}
+
+                # Task 2 — Dirty data
+                elif task_id == 2 and step == 0:
+                    action = {"action_type": "inspect_data", "payload": {}}
+                elif task_id == 2 and step == 1:
+                    action = {"action_type": "edit_script", "payload": {
+                        "old": "X = df[['age','salary','credit_score','loan_amount','employment_years']].copy()",
+                        "new": "df = df.dropna()\ndf['salary'] = df['salary'].clip(upper=df['salary'].quantile(0.99))\nX = df[['age','salary','credit_score','loan_amount','employment_years']].copy()"
+                    }}
+                elif task_id == 2 and step == 2:
+                    action = {"action_type": "run_script", "payload": {}}
+                elif task_id == 2 and step == 3:
+                    action = {"action_type": "submit", "payload": {}}
+
+                # Task 3 — Data leakage
+                elif task_id == 3 and step == 0:
+                    action = {"action_type": "inspect_data", "payload": {}}
+                elif task_id == 3 and step == 1:
+                    action = {"action_type": "run_script", "payload": {}}
+                elif task_id == 3 and step == 2:
+                    action = {"action_type": "edit_script", "payload": {
+                        "old": "scaler = StandardScaler()\nX_scaled = scaler.fit_transform(X)  # data leakage: fit on full data\nX_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)",
+                        "new": "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\nscaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_test = scaler.transform(X_test)"
+                    }}
+                elif task_id == 3 and step == 3:
+                    action = {"action_type": "run_script", "payload": {}}
+                elif task_id == 3 and step == 4:
+                    action = {"action_type": "submit", "payload": {}}
+
+                if action:
                     action_str = json.dumps(action)
                 else:
                     action_str = None
