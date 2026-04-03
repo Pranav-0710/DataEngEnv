@@ -126,3 +126,7 @@ async def api_health():
         return HealthResponse(status="ok", env="DataEngEnv", version="1.0.0")
     except Exception as e:
         return ErrorResponse(error=str(e))
+
+def start():
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)
