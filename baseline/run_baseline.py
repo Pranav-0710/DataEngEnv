@@ -3,16 +3,21 @@ import sys
 import time
 import json
 import httpx
-from groq import Groq
+from openai import OpenAI
 
 def main():
-    api_key = os.environ.get("GROQ_API_KEY")
+    API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
+    MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.1-8b-instant")
+    HF_TOKEN = os.getenv("HF_TOKEN")
+    LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+
+    api_key = HF_TOKEN if HF_TOKEN else os.environ.get("GROQ_API_KEY")
     if not api_key:
-        print("ERROR: GROQ_API_KEY environment variable is not set.")
+        print("ERROR: API key not found. Set HF_TOKEN or GROQ_API_KEY")
         sys.exit(1)
 
+    client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
     base_url = os.environ.get("DATAENGENV_URL", "http://localhost:8000")
-    client = Groq(api_key=api_key)
 
     system_prompt = """You are a Data Engineer debugging a broken ML pipeline. 
 You have a MAXIMUM of 15 steps. Use them wisely.
@@ -75,8 +80,9 @@ Read them carefully before deciding your action.
                 "role": "user",
                 "content": f"Task started. Script:\n{obs.get('script_content', '')}\n\nError: {obs.get('last_run_error', 'none')}"
             })
-
+            print("START")
             for step in range(15):
+                print("STEP")
                 if done:
                     break
                     
@@ -131,7 +137,7 @@ Read them carefully before deciding your action.
                         try:
                             trimmed = [messages[0]] + messages[-6:]
                             resp = client.chat.completions.create(
-                                model="llama-3.1-8b-instant",
+                                model=MODEL_NAME,
                                 messages=trimmed,
                                 response_format={"type": "json_object"},
                                 temperature=0.0
@@ -139,7 +145,7 @@ Read them carefully before deciding your action.
                             action_str = resp.choices[0].message.content
                             break
                         except Exception as e:
-                            print(f"Groq API failed (attempt {attempt+1}): {e}")
+                            print(f"API failed (attempt {attempt+1}): {e}")
                             if attempt == 1:
                                 print("Skipping step due to repeated API failures.")
                 
@@ -186,6 +192,7 @@ Read them carefully before deciding your action.
                                f"Steps remaining: {15 - step - 1}"
                 })
 
+            print("END")
             try:
                 g_res = http.post(f"{base_url}/grader", json={"task_id": task_id})
                 g_res.raise_for_status()
