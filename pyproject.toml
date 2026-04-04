@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "app.main:start"
+server = "app.main:main"
 
 [project.urls]
 Homepage = "https://huggingface.co/spaces/CoBeDigger/DataEngEnv"
