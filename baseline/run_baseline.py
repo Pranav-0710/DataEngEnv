@@ -76,9 +76,8 @@ Read them carefully before deciding your action.
                 "role": "user",
                 "content": f"Task started. Script:\n{obs.get('script_content', '')}\n\nError: {obs.get('last_run_error', 'none')}"
             })
-            print("START")
+            print(f"[START] task={t_info['name']}", flush=True)
             for step in range(15):
-                print("STEP")
                 if done:
                     break
                     
@@ -170,7 +169,9 @@ Read them carefully before deciding your action.
                         continue
                         
                     obs = step_data.get("observation", {})
+                    reward_val = step_data.get("reward", {}).get("score", 0.0)
                     done = obs.get("done", False)
+                    print(f"[STEP] step={step} reward={reward_val}", flush=True)
                 except Exception as e:
                     print(f"Failed to call /step: {e}")
                     continue
@@ -188,7 +189,6 @@ Read them carefully before deciding your action.
                                f"Steps remaining: {15 - step - 1}"
                 })
 
-            print("END")
             try:
                 g_res = http.post(f"{base_url}/grader", json={"task_id": task_id})
                 g_res.raise_for_status()
@@ -197,6 +197,8 @@ Read them carefully before deciding your action.
             except Exception as e:
                 print(f"Failed to get final score from /grader: {e}")
                 score = 0.0
+            
+            print(f"[END] task={t_info['name']} score={score} steps={steps_taken}", flush=True)
 
             total_score += score
             t_info["score"] = score
