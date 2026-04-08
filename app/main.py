@@ -127,6 +127,16 @@ async def api_health():
     except Exception as e:
         return ErrorResponse(error=str(e))
 
+import gradio as gr
+import urllib.request
+import time
+
+try:
+    from gradio_app import demo
+    app = gr.mount_gradio_app(app, demo, path="/")
+except ImportError as e:
+    print(f"Warning: Could not import gradio dashboard: {e}")
+
 def main():
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=7860)
