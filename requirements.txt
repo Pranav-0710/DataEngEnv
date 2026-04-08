@@ -8,3 +8,4 @@ scikit-learn==1.5.2
 uvicorn==0.32.0
 openai
 gradio==5.9.1
+requests
