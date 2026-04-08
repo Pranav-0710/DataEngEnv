@@ -8,10 +8,11 @@ from openai import OpenAI
 def main():
     API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
     MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.1-8b-instant")
+    API_KEY = os.getenv("API_KEY")
     HF_TOKEN = os.getenv("HF_TOKEN")
     LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
-    api_key = HF_TOKEN if HF_TOKEN else os.environ.get("GROQ_API_KEY", "dummy_token_validation_bypass")
+    api_key = API_KEY if API_KEY else (HF_TOKEN if HF_TOKEN else os.environ.get("GROQ_API_KEY", "dummy_token_validation_bypass"))
     client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
     base_url = os.environ.get("DATAENGENV_URL", "http://localhost:8000")
 
@@ -124,25 +125,25 @@ Read them carefully before deciding your action.
                 elif task_id == 3 and step == 4:
                     action = {"action_type": "submit", "payload": {}}
 
+                action_str = None
+                for attempt in range(2):
+                    try:
+                        trimmed = [messages[0]] + messages[-6:]
+                        resp = client.chat.completions.create(
+                            model=MODEL_NAME,
+                            messages=trimmed,
+                            response_format={"type": "json_object"},
+                            temperature=0.0
+                        )
+                        action_str = resp.choices[0].message.content
+                        break
+                    except Exception as e:
+                        print(f"API failed (attempt {attempt+1}): {e}")
+                        if attempt == 1:
+                            print("Skipping step due to repeated API failures.")
+                
                 if action:
                     action_str = json.dumps(action)
-                else:
-                    action_str = None
-                    for attempt in range(2):
-                        try:
-                            trimmed = [messages[0]] + messages[-6:]
-                            resp = client.chat.completions.create(
-                                model=MODEL_NAME,
-                                messages=trimmed,
-                                response_format={"type": "json_object"},
-                                temperature=0.0
-                            )
-                            action_str = resp.choices[0].message.content
-                            break
-                        except Exception as e:
-                            print(f"API failed (attempt {attempt+1}): {e}")
-                            if attempt == 1:
-                                print("Skipping step due to repeated API failures.")
                 
                 time.sleep(1)
                 
