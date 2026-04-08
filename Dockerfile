@@ -5,4 +5,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 EXPOSE 7860
 ENV PORT=7860
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Start FastAPI on 8000 in background, then launch Gradio on 7860
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 & python gradio_app.py"]
