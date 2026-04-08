@@ -42,12 +42,8 @@ class RewardEngine:
 
     def _compute_score(self, st: Dict[str, Any]) -> float:
         total = float(sum(st["awarded"].values()))
-        # Cap cumulative to [0.0, 1.0] pre-terminal
-        if total < 0.0:
-            total = 0.0
-        if total > 1.0:
-            total = 1.0
-        return total
+        # Clamp to strictly open interval (0.01, 0.99)
+        return max(0.01, min(0.99, total))
 
     def compute_reward(
         self,
@@ -158,11 +154,8 @@ class RewardEngine:
         else:
             total_score = self._compute_score(st)
 
-        # Clamp final score to [0.0, 1.0]
-        if total_score < 0.0:
-            total_score = 0.0
-        if total_score > 1.0:
-            total_score = 1.0
+        # Clamp final score to strictly open interval (0.01, 0.99)
+        total_score = max(0.01, min(0.99, total_score))
 
         # Prepare message and cumulative partials
         message = ", ".join(msg_parts) if msg_parts else "no reward"

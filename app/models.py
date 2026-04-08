@@ -32,8 +32,8 @@ class Reward(BaseModel):
     @field_validator("score")
     @classmethod
     def validate_score(cls, v: float) -> float:
-        if not (0.0 <= v <= 1.0):
-            raise ValueError("Score must be between 0.0 and 1.0")
+        if not (0.0 < v < 1.0):
+            raise ValueError("Score must be strictly between 0.0 and 1.0 (exclusive)")
         return v
 
 class StepResponse(BaseModel):
