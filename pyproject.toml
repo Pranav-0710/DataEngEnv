@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "ML Data Pipeline Debugger - OpenEnv Environment"
 requires-python = ">=3.10, <3.13"
 dependencies = [
-    "fastapi==0.111.0",
+    "fastapi==0.115.6",
     "uvicorn",
     "pydantic>=2.7.1",
     "pandas",
@@ -18,7 +18,9 @@ dependencies = [
     "pyyaml",
     "httpx",
     "groq",
-    "openenv-core>=0.2.0"
+    "openenv-core>=0.2.0",
+    "gradio>=5.9.1",
+    "requests"
 ]
 
 [project.scripts]
