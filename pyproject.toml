@@ -26,3 +26,6 @@ server = "app.main:main"
 
 [project.urls]
 Homepage = "https://huggingface.co/spaces/CoBeDigger/DataEngEnv"
+
+[tool.setuptools]
+packages = ["app"]
