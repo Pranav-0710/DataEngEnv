@@ -555,35 +555,144 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv") as demo:
 
         # ── BASELINE TAB ──────────────────────────────────────────────────────
         with gr.Tab("🚀 Run Baseline"):
-            gr.Markdown("### Run the hardcoded expert baseline against the live environment")
+            gr.Markdown("### Run the hardcoded expert baseline — watch every action live as it executes")
 
             run_btn = gr.Button("▶  Run Full Baseline (All 4 Stages)", elem_classes="btn-primary")
 
             live_output = gr.Textbox(
-                label="Baseline Output",
-                lines=22,
+                label="⚡ Live Action Log",
+                lines=28,
                 interactive=False,
-                placeholder="Click Run to execute the baseline agent…",
+                placeholder="Click Run to start the baseline agent…\n\nYou will see each action appear here in real-time as the agent\nworks through all 4 stages of the pipeline.",
                 elem_classes="code-box"
             )
 
-            def run_baseline_ui():
-                import subprocess, os, sys
-                env = os.environ.copy()
-                env["DATAENGENV_URL"] = BASE_URL
-                try:
-                    result = subprocess.run(
-                        [sys.executable, "baseline/run_baseline.py"],
-                        capture_output=True, text=True, timeout=300, env=env
-                    )
-                    out = result.stdout + result.stderr
-                    return out if out.strip() else "✅ Baseline completed with no output."
-                except subprocess.TimeoutExpired:
-                    return "⏱ Baseline timed out after 5 minutes."
-                except Exception as e:
-                    return f"❌ Error running baseline: {e}"
+            ACTION_ICONS = {
+                "inspect_data":  "🔍",
+                "check_schema":  "📋",
+                "run_script":    "▶️ ",
+                "edit_script":   "✏️ ",
+                "query_actor":   "🤖",
+                "submit":        "📤",
+            }
+            STAGE_LABELS = {
+                1: "Data Repair",
+                2: "Training Monitor",
+                3: "Eval Validation",
+                4: "Deploy Gate",
+            }
 
-            run_btn.click(run_baseline_ui, inputs=[], outputs=[live_output])
+            def run_baseline_streaming():
+                import time as _time
+                log = []
+
+                def emit(line):
+                    log.append(line)
+                    return "\n".join(log)
+
+                yield emit("╔══════════════════════════════════════════════════════╗")
+                yield emit("║         PipelineOps Arena — Baseline Run             ║")
+                yield emit("╚══════════════════════════════════════════════════════╝\n")
+
+                try:
+                    # Reset
+                    r = httpx.post(f"{BASE_URL}/reset", timeout=15)
+                    obs = r.json()
+                    if "observation" in obs:
+                        obs = obs["observation"]
+                    yield emit(f"✅ Environment reset → Stage 1: {STAGE_LABELS[1]}\n")
+                    _time.sleep(0.3)
+
+                    steps = [
+                        # Stage 1
+                        {"action_type": "inspect_data", "payload": {}},
+                        {"action_type": "edit_script", "payload": {
+                            "old": "X = df[['age_years', 'salary', 'credit_score', 'loan_amount', 'employment_years']].copy()",
+                            "new": "df.dropna(inplace=True)\nX = df[['age', 'salary', 'credit_score', 'loan_amount', 'employment_years']].copy()"
+                        }},
+                        {"action_type": "run_script", "payload": {}},
+                        {"action_type": "submit", "payload": {}},
+                        # Stage 2
+                        {"action_type": "inspect_data", "payload": {}},
+                        {"action_type": "edit_script", "payload": {
+                            "old": "clf = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=200, random_state=42)",
+                            "new": "from sklearn.preprocessing import StandardScaler\nscaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_test = scaler.transform(X_test)\nclf = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=200, random_state=42)"
+                        }},
+                        {"action_type": "run_script", "payload": {}},
+                        {"action_type": "submit", "payload": {}},
+                        # Stage 3
+                        {"action_type": "run_script", "payload": {}},
+                        {"action_type": "edit_script", "payload": {
+                            "old": "scaler = StandardScaler()\nX_scaled = scaler.fit_transform(X)\nX_train, X_test, y_train, y_test = train_test_split(\n    X_scaled, y, test_size=0.2, random_state=42, stratify=y\n)",
+                            "new": "X_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.2, random_state=42, stratify=y\n)\nscaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_test = scaler.transform(X_test)"
+                        }},
+                        {"action_type": "run_script", "payload": {}},
+                        {"action_type": "submit", "payload": {}},
+                        # Stage 4
+                        {"action_type": "inspect_data", "payload": {}},
+                        {"action_type": "query_actor", "payload": {}},
+                        {"action_type": "edit_script", "payload": {
+                            "old": "clf = LogisticRegression(max_iter=1000, random_state=42)",
+                            "new": "clf = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')"
+                        }},
+                        {"action_type": "run_script", "payload": {}},
+                        {"action_type": "submit", "payload": {}},
+                    ]
+
+                    current_stage = 1
+                    step_num = 0
+
+                    for action in steps:
+                        step_num += 1
+                        atype = action["action_type"]
+                        icon = ACTION_ICONS.get(atype, "▸")
+
+                        yield emit(f"  Step {step_num:02d} │ {icon} {atype.upper():<18} │ running…")
+                        _time.sleep(0.2)
+
+                        resp = httpx.post(f"{BASE_URL}/step", json=action, timeout=30)
+                        data = resp.json()
+                        obs = data.get("observation", data)
+                        rwd = data.get("reward", {})
+                        score = float(rwd.get("score", 0.0))
+                        msg = rwd.get("message", "")[:55]
+                        new_stage = obs.get("current_stage", current_stage)
+                        done = obs.get("done", False)
+
+                        # Overwrite the last line with result
+                        log[-1] = f"  Step {step_num:02d} │ {icon} {atype.upper():<18} │ score={score:.2f}  {msg}"
+                        yield "\n".join(log)
+
+                        # Stage transition banner
+                        if new_stage != current_stage:
+                            current_stage = new_stage
+                            label = STAGE_LABELS.get(current_stage, f"Stage {current_stage}")
+                            yield emit(f"\n{'─'*54}")
+                            yield emit(f"  ➜ Advancing to Stage {current_stage}: {label}")
+                            yield emit(f"{'─'*54}\n")
+
+                        if done:
+                            break
+
+                        _time.sleep(0.4)
+
+                    # Final summary
+                    status = httpx.get(f"{BASE_URL}/pipeline_status", timeout=10).json()
+                    completed = status.get("stages_completed", [])
+                    final_score = status.get("episode_score", 0.0)
+                    total_steps = status.get("total_steps", step_num)
+
+                    yield emit(f"\n╔══════════════════════════════════════════════════════╗")
+                    yield emit(f"║  ✅ EPISODE COMPLETE!                                ║")
+                    yield emit(f"║  Stages completed : {str(completed):<34}║")
+                    yield emit(f"║  Total steps      : {str(total_steps):<34}║")
+                    yield emit(f"║  Final score      : {final_score:.2f}{'':<33}║")
+                    yield emit(f"╚══════════════════════════════════════════════════════╝")
+
+                except Exception as e:
+                    yield emit(f"\n❌ Error during baseline run: {e}")
+
+            run_btn.click(run_baseline_streaming, inputs=[], outputs=[live_output])
 
         # ── DOCS TAB ─────────────────────────────────────────────────────────
         with gr.Tab("📖 API Docs"):
