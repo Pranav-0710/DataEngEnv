@@ -61,6 +61,15 @@ class RewardEngine:
         preview = self._preview_text(observation)
         msg_parts = []
 
+        # query_actor reward — applies to ALL stages
+        if action_type == "query_actor":
+            return Reward(
+                score=0.05,
+                partial_rewards={"actor_query": 0.05},
+                message="Actor consulted",
+                is_terminal=False,
+            )
+
         # TASK 1
         if task_id == 1:
             if action_type in {"inspect_data", "check_schema"}:
@@ -146,6 +155,33 @@ class RewardEngine:
                     if "t3_submit_without_edit" not in awarded_now:
                         awarded_now["t3_submit_without_edit"] = -0.2
                         msg_parts.append("T3: -0.2 submit without edit")
+
+        # TASK 4 (Stage 4 — Deployment Gate)
+        elif task_id == 4:
+            payload_str = str(action_payload)
+            if action_type == "inspect_data":
+                if self._add_partial(st, "s4_inspect", 0.1):
+                    awarded_now["s4_inspect"] = 0.1
+                    msg_parts.append("S4: +0.1 inspected data")
+
+            elif action_type == "edit_script":
+                if "class_weight" in payload_str:
+                    if self._add_partial(st, "s4_fairness_fix", 0.3):
+                        awarded_now["s4_fairness_fix"] = 0.3
+                        msg_parts.append("S4: +0.3 fairness fix detected")
+                elif "stratify" in payload_str:
+                    if self._add_partial(st, "s4_stratify", 0.2):
+                        awarded_now["s4_stratify"] = 0.2
+                        msg_parts.append("S4: +0.2 stratified sampling detected")
+                else:
+                    if self._add_partial(st, "s4_edit", 0.05):
+                        awarded_now["s4_edit"] = 0.05
+                        msg_parts.append("S4: +0.05 script edited")
+
+            elif action_type == "run_script":
+                if self._add_partial(st, "s4_run", 0.1):
+                    awarded_now["s4_run"] = 0.1
+                    msg_parts.append("S4: +0.1 script executed")
 
         # Determine terminal and score
         is_terminal = action_type == "submit"
