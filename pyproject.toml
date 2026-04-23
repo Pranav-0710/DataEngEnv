@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "dataengenv"
 version = "1.0.0"
 description = "ML Data Pipeline Debugger - OpenEnv Environment"
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi==0.115.6",
     "uvicorn",

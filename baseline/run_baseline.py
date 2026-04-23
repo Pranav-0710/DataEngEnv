@@ -91,8 +91,8 @@ def run_episode():
             action = {"action_type": "run_script", "payload": {}}
         elif current_stage == 3 and stage_step == 1:
             action = {"action_type": "edit_script", "payload": {
-                "old": "scaler = StandardScaler()\nX_scaled = scaler.fit_transform(X)  # data leakage: fit on full data\nX_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)",
-                "new": "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\nscaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_test = scaler.transform(X_test)"
+                "old": "scaler = StandardScaler()\nX_scaled = scaler.fit_transform(X)\nX_train, X_test, y_train, y_test = train_test_split(\n    X_scaled, y, test_size=0.2, random_state=42, stratify=y\n)",
+                "new": "X_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.2, random_state=42, stratify=y\n)\nscaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_test = scaler.transform(X_test)"
             }}
         elif current_stage == 3 and stage_step == 2:
             action = {"action_type": "run_script", "payload": {}}

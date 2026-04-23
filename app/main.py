@@ -5,7 +5,12 @@ from pydantic import BaseModel
 
 from app.environment import DataEngEnvironment
 from app.models import Action, Observation, Reward, StepResponse, StateResponse, TaskInfo
-from app.tasks import task1_easy, task2_medium, task3_hard
+from app.tasks import (
+    stage1_data_repair,
+    stage2_training_monitor,
+    stage3_eval_validation,
+    stage4_deploy_gate,
+)
 
 app = FastAPI(title="DataEngEnv API", version="1.0.0")
 
@@ -35,16 +40,25 @@ class BaselineResponse(BaseModel):
     success: bool
     output: str
 
+class PipelineStatusResponse(BaseModel):
+    current_stage: int
+    loop_count: int
+    stages_completed: list[int]
+    total_steps: int
+    episode_score: float
+    actor_feedback: str
+
 @app.on_event("startup")
 async def startup_event():
     print("DataEngEnv ready")
-    # Call generate_scenario() on all 3 tasks to validate they load properly at startup
+    # Call generate_scenario() on all 4 stages to validate they load properly at startup
     try:
-        task1_easy.generate_scenario()
-        task2_medium.generate_scenario()
-        task3_hard.generate_scenario()
+        stage1_data_repair.generate_scenario()
+        stage2_training_monitor.generate_scenario()
+        stage3_eval_validation.generate_scenario()
+        stage4_deploy_gate.generate_scenario()
     except Exception as e:
-        print(f"Warning: A task failed to load during startup validation: {e}")
+        print(f"Warning: A stage failed to load during startup validation: {e}")
 
 
 @app.post("/reset", response_model=Observation | ErrorResponse)
@@ -72,26 +86,39 @@ async def api_state():
 @app.get("/tasks", response_model=list[TaskInfo] | ErrorResponse)
 async def api_tasks():
     try:
+        scenarios = {
+            1: stage1_data_repair.generate_scenario(),
+            2: stage2_training_monitor.generate_scenario(),
+            3: stage3_eval_validation.generate_scenario(),
+            4: stage4_deploy_gate.generate_scenario(),
+        }
         return [
             TaskInfo(
                 task_id=1,
-                name="Easy Data Cleaning",
+                name="Stage 1: Data Repair",
                 difficulty="easy",
-                description="Fix the broken script by identifying and replacing the incorrect column name ('age_years' to 'age').",
+                description=scenarios[1]["task_description"],
                 action_schema={}
             ),
             TaskInfo(
                 task_id=2,
-                name="Medium Data Imputation",
+                name="Stage 2: Training Monitor",
                 difficulty="medium",
-                description="Detect missing values and outliers in the numeric dataset. Apply dropna/fillna for NaNs and clip/quantile for outliers.",
+                description=scenarios[2]["task_description"],
                 action_schema={}
             ),
             TaskInfo(
                 task_id=3,
-                name="Hard Data Leakage",
+                name="Stage 3: Eval Validation",
                 difficulty="hard",
-                description="Fix the critical logical data leakage issue by moving the scaler.fit() call AFTER train_test_split() to avoid cheating on the validation set.",
+                description=scenarios[3]["task_description"],
+                action_schema={}
+            ),
+            TaskInfo(
+                task_id=4,
+                name="Stage 4: Deployment Gate",
+                difficulty="hard",
+                description=scenarios[4]["task_description"],
                 action_schema={}
             )
         ]
@@ -103,8 +130,22 @@ async def api_grader(req: TaskIdRequest | None = None):
     try:
         tid = req.task_id if req is not None and req.task_id is not None else env.current_task_id
         if tid != env.current_task_id:
-            return ErrorResponse(error="task_id mismatch — call /reset with this task_id first")
+            return ErrorResponse(error="task_id mismatch - call /reset first; the pipeline controls stage advancement")
         return env.submit_grader(tid)
+    except Exception as e:
+        return ErrorResponse(error=str(e))
+
+@app.get("/pipeline_status", response_model=PipelineStatusResponse | ErrorResponse)
+async def api_pipeline_status():
+    try:
+        return PipelineStatusResponse(
+            current_stage=env.current_stage,
+            loop_count=env.loop_count,
+            stages_completed=list(env.stages_completed),
+            total_steps=env.step_number,
+            episode_score=float(env.episode_score),
+            actor_feedback=env.actor_feedback,
+        )
     except Exception as e:
         return ErrorResponse(error=str(e))
 
