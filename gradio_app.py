@@ -4,321 +4,572 @@ import json
 
 BASE_URL = "http://localhost:7860"
 
-TASK_DESCRIPTIONS = {
-    1: "Easy — Column Rename Bug: Fix the pipeline where 'age_years' should be 'age'.",
-    2: "Medium — Dirty Data: Handle NaN values and salary outliers before modeling.",
-    3: "Hard — Data Leakage: Move scaler.fit() to after train_test_split() to fix leakage.",
-}
+# ─── API Helpers ──────────────────────────────────────────────────────────────
 
-# ─── Playground helpers ───────────────────────────────────────────────────────
-
-def reset_env(task_id: int):
+def get_pipeline_status():
     try:
-        r = httpx.post(f"{BASE_URL}/reset", json={"task_id": task_id}, timeout=10)
+        r = httpx.get(f"{BASE_URL}/pipeline_status", timeout=10)
+        return r.json()
+    except:
+        return {}
+
+def reset_env():
+    try:
+        r = httpx.post(f"{BASE_URL}/reset", json={}, timeout=10)
         data = r.json()
-        script = data.get("script_content", "")
-        error  = data.get("last_run_error") or "None"
-        obs_pretty = json.dumps(data, indent=2)
-        status = f"✅ Reset to Task {task_id}"
-        return status, script, error, obs_pretty
+        obs = data if "current_stage" in data else data.get("observation", data)
+        script = obs.get("script_content", "")
+        error = obs.get("last_run_error") or "None"
+        status = get_pipeline_status()
+        stage_html = build_stage_html(status)
+        return "✅ Environment reset! Starting Stage 1.", script, error, json.dumps(data, indent=2), stage_html
     except Exception as e:
-        return f"❌ Error: {e}", "", "", ""
+        return f"❌ Error: {e}", "", "", "", build_stage_html({})
 
 def step_env(action_type: str, old_text: str, new_text: str):
-    payload: dict = {}
+    payload = {}
     if action_type == "edit_script":
         payload = {"old": old_text, "new": new_text}
     try:
         body = {"action_type": action_type, "payload": payload}
         r = httpx.post(f"{BASE_URL}/step", json=body, timeout=15)
         data = r.json()
-        obs  = data.get("observation", {})
-        rwd  = data.get("reward", {})
+        obs = data.get("observation", data)
+        rwd = data.get("reward", {})
         script = obs.get("script_content", "")
-        error  = obs.get("last_run_error") or "None"
-        score  = rwd.get("score", "—")
-        msg    = rwd.get("message", "")
-        obs_pretty = json.dumps(data, indent=2)
-        status = f"✅ Step done | Score: {score} | {msg}"
-        return status, script, error, obs_pretty
+        error = obs.get("last_run_error") or "None"
+        score = rwd.get("score", "—")
+        msg = rwd.get("message", "")
+        status = get_pipeline_status()
+        stage_html = build_stage_html(status)
+        current_stage = obs.get("current_stage", "—")
+        status_msg = f"✅ Stage {current_stage} | Action: {action_type} | Score: {score} | {msg}"
+        return status_msg, script, error, json.dumps(data, indent=2), stage_html
     except Exception as e:
-        return f"❌ Error: {e}", "", "", ""
+        return f"❌ Error: {e}", "", "", "", build_stage_html({})
 
-def get_state():
+def query_actor_ui():
     try:
-        r = httpx.get(f"{BASE_URL}/state", timeout=10)
-        return json.dumps(r.json(), indent=2)
-    except Exception as e:
-        return f"Error: {e}"
-
-def submit_grader_ui(task_id: int):
-    try:
-        r = httpx.post(f"{BASE_URL}/grader", json={"task_id": task_id}, timeout=15)
+        body = {"action_type": "query_actor", "payload": {}}
+        r = httpx.post(f"{BASE_URL}/step", json=body, timeout=15)
         data = r.json()
-        score = data.get("score", "—")
-        msg   = data.get("message", "")
-        pretty = json.dumps(data, indent=2)
-        return f"🏆 Final Score: {score} | {msg}", pretty
+        obs = data.get("observation", data)
+        feedback = obs.get("actor_feedback", "No feedback available.")
+        rwd = data.get("reward", {})
+        status = get_pipeline_status()
+        stage_html = build_stage_html(status)
+        return f"🤖 Actor Feedback: {feedback}", "", "", json.dumps(data, indent=2), stage_html
     except Exception as e:
-        return f"❌ Error: {e}", ""
+        return f"❌ Error: {e}", "", "", "", build_stage_html({})
+
+def refresh_status():
+    status = get_pipeline_status()
+    return build_stage_html(status)
+
+def build_stage_html(status: dict) -> str:
+    completed = status.get("stages_completed", [])
+    current = status.get("current_stage", 1)
+    episode_score = status.get("episode_score", 0.0)
+    total_steps = status.get("total_steps", 0)
+
+    stages = [
+        ("1", "Data Repair", "Fix column bugs & NaN values", "🔧"),
+        ("2", "Training Monitor", "Fix divergence with StandardScaler", "📈"),
+        ("3", "Eval Validation", "Fix data leakage bug", "🔍"),
+        ("4", "Deploy Gate", "Fix model fairness constraint", "🚀"),
+    ]
+
+    cards = ""
+    for sid, name, desc, icon in stages:
+        sid_int = int(sid)
+        if sid_int in completed:
+            state_class = "stage-done"
+            badge = '<span class="stage-badge badge-done">✅ Complete</span>'
+        elif sid_int == current:
+            state_class = "stage-active"
+            badge = '<span class="stage-badge badge-active">⚡ Active</span>'
+        else:
+            state_class = "stage-pending"
+            badge = '<span class="stage-badge badge-pending">⏳ Pending</span>'
+
+        cards += f"""
+        <div class="stage-card {state_class}">
+            <div class="stage-icon">{icon}</div>
+            <div class="stage-info">
+                <div class="stage-name">Stage {sid}: {name}</div>
+                <div class="stage-desc">{desc}</div>
+            </div>
+            {badge}
+        </div>"""
+
+    score_pct = int(episode_score * 100)
+    bar_color = "#22c55e" if score_pct >= 75 else "#f59e0b" if score_pct >= 25 else "#6366f1"
+
+    return f"""
+    <div class="pipeline-panel">
+      <div class="pipeline-header">
+        <div class="pipeline-title">🏗️ PipelineOps Arena</div>
+        <div class="pipeline-meta">
+          <span class="meta-chip">Stage {current}/4</span>
+          <span class="meta-chip">Steps: {total_steps}</span>
+          <span class="meta-chip" style="color:#86efac">Score: {score_pct}%</span>
+        </div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-inner" style="width:{score_pct}%; background:{bar_color};"></div>
+      </div>
+      <div class="stage-list">{cards}</div>
+    </div>
+    """
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 
 CUSTOM_CSS = """
-/* ── Global ─────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-* { font-family: 'Inter', sans-serif !important; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ── Hero section (Custom tab) ───────────────────────── */
-.hero-section {
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+*, *::before, *::after { box-sizing: border-box; }
+body, .gradio-container { 
+    font-family: 'Inter', sans-serif !important; 
+    background: #060910 !important;
+}
+
+/* ── Tab styling ─────────────────────────────────────────── */
+.tabs > .tab-nav { border-bottom: 1px solid rgba(99,102,241,0.2) !important; }
+.tabs > .tab-nav button {
+    color: #64748b !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    padding: 10px 20px !important;
+    border-radius: 8px 8px 0 0 !important;
+    transition: all 0.2s !important;
+}
+.tabs > .tab-nav button.selected { 
+    color: #818cf8 !important; 
+    border-bottom: 2px solid #6366f1 !important;
+    background: rgba(99,102,241,0.08) !important;
+}
+
+/* ── Hero Banner ─────────────────────────────────────────── */
+.hero-banner {
+    background: linear-gradient(135deg, #0f172a 0%, #1a1040 40%, #0f1729 100%);
+    border: 1px solid rgba(99,102,241,0.25);
     border-radius: 16px;
-    padding: 40px 48px;
-    margin-bottom: 24px;
-    border: 1px solid rgba(99,102,241,0.3);
+    padding: 36px 44px;
+    margin-bottom: 20px;
     position: relative;
     overflow: hidden;
 }
-.hero-section::before {
+.hero-banner::before {
     content: '';
     position: absolute;
-    top: -60px; right: -60px;
-    width: 300px; height: 300px;
-    background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+    top: -80px; right: -80px;
+    width: 350px; height: 350px;
+    background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%);
     border-radius: 50%;
+    pointer-events: none;
+}
+.hero-banner::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; left: 30%;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
 }
 .hero-title {
-    color: #f8fafc;
-    font-size: 2.2rem;
-    font-weight: 700;
+    font-size: 2rem;
+    font-weight: 800;
+    color: #f1f5f9;
     margin: 0 0 8px 0;
+    letter-spacing: -0.5px;
+}
+.hero-title span { 
+    background: linear-gradient(90deg, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.hero-sub {
+    color: #94a3b8;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin: 0 0 20px 0;
+    max-width: 580px;
+}
+.hero-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.hbadge {
+    padding: 5px 13px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid;
+}
+.hb-blue  { color: #93c5fd; border-color: rgba(59,130,246,0.4);  background: rgba(59,130,246,0.1); }
+.hb-green { color: #86efac; border-color: rgba(34,197,94,0.4);   background: rgba(34,197,94,0.1); }
+.hb-amber { color: #fcd34d; border-color: rgba(245,158,11,0.4);  background: rgba(245,158,11,0.1); }
+.hb-purple{ color: #d8b4fe; border-color: rgba(139,92,246,0.4);  background: rgba(139,92,246,0.1); }
+.hb-rose  { color: #fda4af; border-color: rgba(244,63,94,0.4);   background: rgba(244,63,94,0.1); }
+
+/* ── Pipeline Panel ──────────────────────────────────────── */
+.pipeline-panel {
+    background: #0d1117;
+    border: 1px solid rgba(99,102,241,0.2);
+    border-radius: 14px;
+    padding: 20px;
+    height: 100%;
+}
+.pipeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+.pipeline-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+.pipeline-meta { display: flex; gap: 6px; }
+.meta-chip {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #94a3b8;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+.progress-bar-wrap {
+    background: rgba(255,255,255,0.06);
+    border-radius: 999px;
+    height: 6px;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+.progress-bar-inner {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.5s ease;
+}
+.stage-list { display: flex; flex-direction: column; gap: 10px; }
+.stage-card {
     display: flex;
     align-items: center;
     gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid;
+    transition: all 0.2s;
 }
-.hero-subtitle {
-    color: #94a3b8;
-    font-size: 1rem;
-    margin: 0 0 24px 0;
-    line-height: 1.6;
-    max-width: 600px;
+.stage-done    { background: rgba(34,197,94,0.06);   border-color: rgba(34,197,94,0.2); }
+.stage-active  { background: rgba(99,102,241,0.1);   border-color: rgba(99,102,241,0.4);
+                  box-shadow: 0 0 12px rgba(99,102,241,0.15); }
+.stage-pending { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.06); }
+.stage-icon { font-size: 1.4rem; flex-shrink: 0; }
+.stage-info { flex: 1; }
+.stage-name { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; }
+.stage-desc { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+.stage-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+    border: 1px solid;
 }
-.hero-badges {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-.badge {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.12);
-    color: #e2e8f0;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 0.82rem;
-    font-weight: 500;
-}
-.badge-blue  { border-color: rgba(59,130,246,0.5);  color: #93c5fd; background: rgba(59,130,246,0.1); }
-.badge-green { border-color: rgba(34,197,94,0.5);   color: #86efac; background: rgba(34,197,94,0.1); }
-.badge-amber { border-color: rgba(245,158,11,0.5);  color: #fcd34d; background: rgba(245,158,11,0.1); }
-.badge-purple{ border-color: rgba(139,92,246,0.5);  color: #c4b5fd; background: rgba(139,92,246,0.1); }
+.badge-done    { color: #86efac; border-color: rgba(34,197,94,0.4);   background: rgba(34,197,94,0.1); }
+.badge-active  { color: #a5b4fc; border-color: rgba(99,102,241,0.5);  background: rgba(99,102,241,0.15); }
+.badge-pending { color: #475569; border-color: rgba(71,85,105,0.3);   background: transparent; }
 
-/* ── Status bar ──────────────────────────────────────── */
-.status-bar { font-weight: 600 !important; }
-
-/* ── Terminal output ─────────────────────────────────── */
-.terminal-box textarea {
-    background: #0d1117 !important;
-    color: #4ade80 !important;
-    font-family: 'Courier New', monospace !important;
-    font-size: 0.82rem !important;
-    border: 1px solid #21262d !important;
-    border-radius: 8px !important;
-}
-
-/* ── Run button ───────────────────────────────────────── */
-.run-btn {
+/* ── Action buttons ──────────────────────────────────────── */
+.btn-primary {
     background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
     color: white !important;
-    font-size: 1rem !important;
-    font-weight: 600 !important;
-    border-radius: 10px !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
     border: none !important;
-    padding: 14px !important;
+    border-radius: 10px !important;
+    padding: 12px !important;
+    transition: opacity 0.2s !important;
+    box-shadow: 0 4px 15px rgba(99,102,241,0.3) !important;
 }
-.run-btn:hover { opacity: 0.9 !important; }
-
-/* ── Step button ──────────────────────────────────────── */
-.step-btn {
-    background: #15803d !important;
-    color: white !important;
+.btn-primary:hover { opacity: 0.88 !important; }
+.btn-reset {
+    background: rgba(255,255,255,0.06) !important;
+    color: #94a3b8 !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 10px !important;
     font-weight: 600 !important;
+    transition: all 0.2s !important;
+}
+.btn-reset:hover { background: rgba(255,255,255,0.1) !important; color: #e2e8f0 !important; }
+.btn-actor {
+    background: rgba(245,158,11,0.12) !important;
+    color: #fcd34d !important;
+    border: 1px solid rgba(245,158,11,0.3) !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+}
+.btn-actor:hover { background: rgba(245,158,11,0.2) !important; }
+
+/* ── Code / terminal boxes ───────────────────────────────── */
+.code-box textarea, .code-box pre {
+    background: #0d1117 !important;
+    color: #e2e8f0 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.82rem !important;
+    border: 1px solid #1e293b !important;
+    border-radius: 10px !important;
+}
+.error-box textarea {
+    background: #130a0a !important;
+    color: #fca5a5 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.8rem !important;
+    border: 1px solid #3b1a1a !important;
+    border-radius: 10px !important;
+}
+.status-box textarea {
+    background: #0a130a !important;
+    color: #86efac !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    border: 1px solid #1a3b1a !important;
+    border-radius: 10px !important;
+}
+
+/* ── Inputs ──────────────────────────────────────────────── */
+.gr-input, textarea, input, select, .gr-dropdown {
+    background: #0d1117 !important;
+    border: 1px solid #1e293b !important;
+    color: #e2e8f0 !important;
     border-radius: 8px !important;
 }
+label span { color: #64748b !important; font-size: 0.8rem !important; font-weight: 600 !important; }
 
-/* ── Section label ────────────────────────────────────── */
-.section-label {
-    color: #64748b;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
+/* ── Docs tab ────────────────────────────────────────────── */
+.doc-box {
+    background: #0d1117;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 20px 24px;
+    color: #cbd5e1;
+    line-height: 1.7;
+    font-size: 0.88rem;
+}
+.doc-box code {
+    background: #1e293b;
+    color: #a5b4fc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+}
+.doc-box pre {
+    background: #060910 !important;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
 }
 """
 
 HERO_HTML = """
-<div class="hero-section">
-  <div class="hero-title">🛠️ DataEngEnv</div>
-  <p class="hero-subtitle">
-    An OpenEnv agentic environment where an AI agent debugs broken ML data pipelines —
+<div class="hero-banner">
+  <div class="hero-title">🛠️ <span>PipelineOps Arena</span></div>
+  <p class="hero-sub">
+    A 4-stage cascading RL environment where AI agents debug broken ML pipelines —
     graded <strong style="color:#818cf8">deterministically</strong>, no LLM judge required.
   </p>
   <div class="hero-badges">
-    <span class="badge badge-blue">⚡ 3 Tasks</span>
-    <span class="badge badge-green">✅ Deterministic Grader</span>
-    <span class="badge badge-amber">📊 Reward ∈ (0, 1)</span>
-    <span class="badge badge-purple">🤖 OpenEnv Compliant</span>
+    <span class="hbadge hb-blue">⚡ 4-Stage Cascade</span>
+    <span class="hbadge hb-green">✅ Deterministic Grading</span>
+    <span class="hbadge hb-amber">📊 Reward ∈ [0, 1]</span>
+    <span class="hbadge hb-purple">🤖 OpenEnv Compliant</span>
+    <span class="hbadge hb-rose">🦾 GRPO Fine-tuned</span>
   </div>
+</div>
+"""
+
+DOCS_HTML = """
+<div class="doc-box">
+<h3 style="color:#e2e8f0; margin-top:0">🔌 API Quick Start</h3>
+
+<b style="color:#94a3b8">Base URL:</b> <code>https://CoBeDigger-DataEngEnv.hf.space</code>
+
+<pre><code style="color:#86efac">import requests
+
+BASE = "https://CoBeDigger-DataEngEnv.hf.space"
+
+# 1. Reset (starts at Stage 1)
+obs = requests.post(f"{BASE}/reset").json()
+
+# 2. Take a step
+result = requests.post(f"{BASE}/step", json={
+    "action_type": "edit_script",
+    "payload": {"old": "age_years", "new": "age"}
+}).json()
+
+# 3. Check pipeline progress
+status = requests.get(f"{BASE}/pipeline_status").json()
+</code></pre>
+
+<h3 style="color:#e2e8f0">🎮 Available Actions</h3>
+<table style="width:100%; border-collapse:collapse;">
+  <tr style="border-bottom:1px solid #1e293b">
+    <td style="padding:8px; color:#a5b4fc; font-family:monospace">inspect_data</td>
+    <td style="padding:8px; color:#94a3b8">View dataset shape, columns, nulls, sample rows</td>
+  </tr>
+  <tr style="border-bottom:1px solid #1e293b">
+    <td style="padding:8px; color:#a5b4fc; font-family:monospace">check_schema</td>
+    <td style="padding:8px; color:#94a3b8">Compare expected vs actual column names</td>
+  </tr>
+  <tr style="border-bottom:1px solid #1e293b">
+    <td style="padding:8px; color:#a5b4fc; font-family:monospace">run_script</td>
+    <td style="padding:8px; color:#94a3b8">Execute the current pipeline script</td>
+  </tr>
+  <tr style="border-bottom:1px solid #1e293b">
+    <td style="padding:8px; color:#a5b4fc; font-family:monospace">edit_script</td>
+    <td style="padding:8px; color:#94a3b8">Patch the script: payload = {"old": "...", "new": "..."}</td>
+  </tr>
+  <tr style="border-bottom:1px solid #1e293b">
+    <td style="padding:8px; color:#a5b4fc; font-family:monospace">query_actor</td>
+    <td style="padding:8px; color:#94a3b8">Ask the MLOps Bot for feedback (Stage 4)</td>
+  </tr>
+  <tr>
+    <td style="padding:8px; color:#a5b4fc; font-family:monospace">submit</td>
+    <td style="padding:8px; color:#94a3b8">Submit the current fix for grading</td>
+  </tr>
+</table>
+
+<h3 style="color:#e2e8f0">🏗️ The 4 Stages</h3>
+<ol style="color:#94a3b8; padding-left:20px; line-height:2">
+  <li><b style="color:#e2e8f0">Data Repair</b> — Fix <code>age_years → age</code> column bug + handle NaN values</li>
+  <li><b style="color:#e2e8f0">Training Monitor</b> — Add <code>StandardScaler</code> to fix MLP divergence</li>
+  <li><b style="color:#e2e8f0">Eval Validation</b> — Move <code>scaler.fit()</code> after train/test split to fix data leakage</li>
+  <li><b style="color:#e2e8f0">Deploy Gate</b> — Add <code>class_weight='balanced'</code> to fix model fairness</li>
+</ol>
 </div>
 """
 
 # ─── UI ───────────────────────────────────────────────────────────────────────
 
-with gr.Blocks(css=CUSTOM_CSS, title="DataEngEnv — OpenEnv") as demo:
+with gr.Blocks(title="PipelineOps Arena — OpenEnv") as demo:
 
-    gr.Markdown("# OpenEnv Agentic Environment: DataEngEnv")
+    gr.HTML(HERO_HTML)
 
     with gr.Tabs():
 
         # ── PLAYGROUND TAB ────────────────────────────────────────────────────
         with gr.Tab("🎮 Playground"):
             with gr.Row():
-                # Left sidebar
-                with gr.Column(scale=1):
-                    with gr.Accordion("📖 Quick Start", open=True):
-                        gr.Markdown("""
-**Connect from Python:**
-```python
-import httpx
-base = "https://CoBeDigger-DataEngEnv.hf.space"
 
-# Reset to task 1
-obs = httpx.post(f"{base}/reset", json={"task_id": 1}).json()
+                # Left: Pipeline Status Panel
+                with gr.Column(scale=1, min_width=280):
+                    stage_display = gr.HTML(
+                        value=build_stage_html({}),
+                        label=""
+                    )
+                    refresh_btn = gr.Button("🔄 Refresh Status", elem_classes="btn-reset", size="sm")
 
-# Take a step
-result = httpx.post(f"{base}/step", json={
-    "action_type": "inspect_data",
-    "payload": {}
-}).json()
-```
-
-**Available actions:**
-- `inspect_data` — view dataset
-- `check_schema` — compare columns
-- `run_script` — execute pipeline
-- `edit_script` — patch the code
-- `submit` — grade your fix
-                        """)
-
-                # Main playground area
+                # Right: Interaction Panel
                 with gr.Column(scale=2):
-                    gr.Markdown("## Playground")
-                    gr.Markdown("Select a task, hit **Reset**, then interact step by step.")
-
                     with gr.Row():
-                        task_dd = gr.Dropdown(
-                            choices=[1, 2, 3], value=1, label="Task ID",
-                            info="1=Easy · 2=Medium · 3=Hard"
-                        )
                         action_dd = gr.Dropdown(
-                            choices=["inspect_data", "check_schema", "run_script", "edit_script", "submit"],
-                            value="inspect_data", label="Action Type"
+                            choices=["inspect_data", "check_schema", "run_script",
+                                     "edit_script", "query_actor", "submit"],
+                            value="inspect_data",
+                            label="Action",
+                            scale=2
+                        )
+                        reset_btn = gr.Button("⟳ Reset Episode", elem_classes="btn-reset", scale=1)
+
+                    with gr.Row():
+                        old_text = gr.Textbox(
+                            label="Old Code  (edit_script only)",
+                            lines=2,
+                            placeholder="Exact text to replace in the script…",
+                            elem_classes="code-box"
+                        )
+                        new_text = gr.Textbox(
+                            label="New Code  (edit_script only)",
+                            lines=2,
+                            placeholder="Replacement text…",
+                            elem_classes="code-box"
                         )
 
                     with gr.Row():
-                        old_text = gr.Textbox(label="Old Code (edit_script only)", lines=2, placeholder="Text to replace…")
-                        new_text = gr.Textbox(label="New Code (edit_script only)", lines=2, placeholder="Replacement text…")
+                        step_btn  = gr.Button("▶  Execute Action", elem_classes="btn-primary", scale=3)
+                        actor_btn = gr.Button("🤖 Query MLOps Bot", elem_classes="btn-actor", scale=1)
+
+                    status_out = gr.Textbox(
+                        label="Status",
+                        interactive=False,
+                        elem_classes="status-box",
+                        lines=1
+                    )
 
                     with gr.Row():
-                        step_btn   = gr.Button("▶ Step",   elem_classes="step-btn")
-                        reset_btn  = gr.Button("🔄 Reset", variant="secondary")
-                        state_btn  = gr.Button("📋 State", variant="secondary")
-                        submit_btn = gr.Button("🏆 Submit / Grade", variant="secondary")
+                        script_out = gr.Code(
+                            label="📄 Current Pipeline Script",
+                            language="python",
+                            lines=14,
+                            elem_classes="code-box"
+                        )
+                        error_out = gr.Textbox(
+                            label="🔴 Last Run Error",
+                            lines=14,
+                            interactive=False,
+                            elem_classes="error-box"
+                        )
 
-                    status_out = gr.Textbox(label="Status", elem_classes="status-bar", interactive=False)
+                    json_out = gr.Code(
+                        label="📦 Raw API Response",
+                        language="json",
+                        lines=8,
+                        elem_classes="code-box"
+                    )
 
-                    with gr.Row():
-                        script_out = gr.Code(label="Current Script", language="python", lines=12)
-                        error_out  = gr.Textbox(label="Last Run Error", lines=12, interactive=False)
-
-                    json_out = gr.Code(label="Raw JSON Response", language="json", lines=10)
-
-            # ── Wire up buttons ──
-            reset_btn.click(
-                reset_env,
-                inputs=[task_dd],
-                outputs=[status_out, script_out, error_out, json_out]
-            )
+            # Wire up buttons
             step_btn.click(
                 step_env,
                 inputs=[action_dd, old_text, new_text],
-                outputs=[status_out, script_out, error_out, json_out]
+                outputs=[status_out, script_out, error_out, json_out, stage_display]
             )
-            state_btn.click(
-                lambda: get_state(),
+            actor_btn.click(
+                query_actor_ui,
                 inputs=[],
-                outputs=[json_out]
+                outputs=[status_out, script_out, error_out, json_out, stage_display]
             )
-            submit_btn.click(
-                submit_grader_ui,
-                inputs=[task_dd],
-                outputs=[status_out, json_out]
+            reset_btn.click(
+                reset_env,
+                inputs=[],
+                outputs=[status_out, script_out, error_out, json_out, stage_display]
+            )
+            refresh_btn.click(
+                refresh_status,
+                inputs=[],
+                outputs=[stage_display]
             )
 
-        # ── CUSTOM / BASELINE TAB ─────────────────────────────────────────────
-        with gr.Tab("🚀 Baseline"):
-            gr.HTML(HERO_HTML)
+        # ── BASELINE TAB ──────────────────────────────────────────────────────
+        with gr.Tab("🚀 Run Baseline"):
+            gr.Markdown("### Run the hardcoded expert baseline against the live environment")
 
-            gr.Markdown('<p class="section-label">Configuration</p>')
+            run_btn = gr.Button("▶  Run Full Baseline (All 4 Stages)", elem_classes="btn-primary")
 
-            with gr.Row():
-                with gr.Column():
-                    model_input = gr.Textbox(
-                        label="Model",
-                        value="llama-3.1-8b-instant",
-                        info="Model name passed to the OpenAI-compatible proxy (MODEL_NAME env var).",
-                        placeholder="e.g. llama-3.1-8b-instant"
-                    )
-                with gr.Column():
-                    tasks_check = gr.CheckboxGroup(
-                        choices=[
-                            "Task 1 — Easy (Column Rename Bug)",
-                            "Task 2 — Medium (Dirty Data)",
-                            "Task 3 — Hard (Data Leakage)"
-                        ],
-                        value=[
-                            "Task 1 — Easy (Column Rename Bug)",
-                            "Task 2 — Medium (Dirty Data)",
-                            "Task 3 — Hard (Data Leakage)"
-                        ],
-                        label="Tasks to Evaluate"
-                    )
-
-            run_btn = gr.Button("▶  Run Baseline Evaluation", elem_classes="run-btn")
-
-            gr.Markdown('<p class="section-label">Live Output</p>')
             live_output = gr.Textbox(
-                label="",
-                lines=18,
+                label="Baseline Output",
+                lines=22,
                 interactive=False,
-                placeholder="Baseline output will appear here…",
-                elem_classes="terminal-box"
+                placeholder="Click Run to execute the baseline agent…",
+                elem_classes="code-box"
             )
 
-            def run_baseline_ui(model, tasks):
+            def run_baseline_ui():
                 import subprocess, os, sys
                 env = os.environ.copy()
-                env["MODEL_NAME"] = model
                 env["DATAENGENV_URL"] = BASE_URL
                 try:
                     result = subprocess.run(
@@ -332,7 +583,15 @@ result = httpx.post(f"{base}/step", json={
                 except Exception as e:
                     return f"❌ Error running baseline: {e}"
 
-            run_btn.click(run_baseline_ui, inputs=[model_input, tasks_check], outputs=[live_output])
+            run_btn.click(run_baseline_ui, inputs=[], outputs=[live_output])
+
+        # ── DOCS TAB ─────────────────────────────────────────────────────────
+        with gr.Tab("📖 API Docs"):
+            gr.HTML(DOCS_HTML)
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        css=CUSTOM_CSS
+    )
