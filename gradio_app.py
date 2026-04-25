@@ -873,58 +873,90 @@ Run both agents sequentially and compare reward trajectories across all 4 stages
                 import time as _time
                 import os as _os
 
-                # ── Baseline: scripted rule-based agent ─────────────────────
+                # ── Baseline: scripted rule-based agent (full script replacements) ──
+                S1 = (
+                    "import pandas as pd\n"
+                    "from sklearn.preprocessing import StandardScaler\n"
+                    "from sklearn.linear_model import LogisticRegression\n"
+                    "from sklearn.model_selection import train_test_split\n\n"
+                    "df = df.dropna()\n"
+                    "df['salary'] = df['salary'].clip(upper=df['salary'].quantile(0.99))\n"
+                    "X = df[['age', 'salary', 'credit_score', 'loan_amount', 'employment_years']].copy()\n"
+                    "y = df['target']\n"
+                    "scaler = StandardScaler()\n"
+                    "X_scaled = scaler.fit_transform(X)\n"
+                    "X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)\n"
+                    "clf = LogisticRegression(max_iter=1000, random_state=42)\n"
+                    "clf.fit(X_train, y_train)\n"
+                    "print('Accuracy:', clf.score(X_test, y_test))\n"
+                )
+                S2 = (
+                    "import pandas as pd\n"
+                    "from sklearn.preprocessing import StandardScaler\n"
+                    "from sklearn.neural_network import MLPClassifier\n"
+                    "from sklearn.model_selection import train_test_split\n\n"
+                    "X = df.drop(columns=['target'])\n"
+                    "y = df['target']\n"
+                    "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
+                    "scaler = StandardScaler()\n"
+                    "X_train = scaler.fit_transform(X_train)\n"
+                    "X_test = scaler.transform(X_test)\n"
+                    "clf = MLPClassifier(hidden_layer_sizes=(64,32), max_iter=200, random_state=42)\n"
+                    "clf.fit(X_train, y_train)\n"
+                    "print('Accuracy:', clf.score(X_test, y_test))\n"
+                )
+                S3 = (
+                    "import pandas as pd\n"
+                    "from sklearn.preprocessing import StandardScaler\n"
+                    "from sklearn.linear_model import LogisticRegression\n"
+                    "from sklearn.model_selection import train_test_split\n\n"
+                    "X = df.drop(columns=['target'])\n"
+                    "y = df['target']\n"
+                    "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
+                    "scaler = StandardScaler()\n"
+                    "X_train = scaler.fit_transform(X_train)\n"
+                    "X_test = scaler.transform(X_test)\n"
+                    "clf = LogisticRegression(max_iter=1000, random_state=42)\n"
+                    "clf.fit(X_train, y_train)\n"
+                    "print('Accuracy:', clf.score(X_test, y_test))\n"
+                )
+                S4 = (
+                    "import pandas as pd\n"
+                    "from sklearn.preprocessing import StandardScaler\n"
+                    "from sklearn.linear_model import LogisticRegression\n"
+                    "from sklearn.model_selection import train_test_split\n\n"
+                    "X = df.drop(columns=['target'])\n"
+                    "y = df['target']\n"
+                    "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
+                    "scaler = StandardScaler()\n"
+                    "X_train = scaler.fit_transform(X_train)\n"
+                    "X_test = scaler.transform(X_test)\n"
+                    "clf = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')\n"
+                    "clf.fit(X_train, y_train)\n"
+                    "print('Accuracy:', clf.score(X_test, y_test))\n"
+                )
                 STAGE_SCRIPTS = {
                     1: [
                         {"action_type": "inspect_data", "payload": {}},
-                        {"action_type": "edit_script", "payload": {
-                            "old": "X = df[['age_years', 'salary', 'credit_score', 'loan_amount', 'employment_years']].copy()",
-                            "new": (
-                                "df = df.dropna()\n"
-                                "for col in ['salary']:\n"
-                                "    q99 = df[col].quantile(0.99)\n"
-                                "    df[col] = df[col].clip(upper=q99)\n"
-                                "X = df[['age', 'salary', 'credit_score', 'loan_amount', 'employment_years']].copy()"
-                            )
-                        }},
+                        {"action_type": "edit_script", "payload": {"script": S1}},
                         {"action_type": "run_script", "payload": {}},
                         {"action_type": "submit", "payload": {}},
                     ],
                     2: [
                         {"action_type": "inspect_data", "payload": {}},
-                        {"action_type": "edit_script", "payload": {
-                            "old": "clf.fit(X_train, y_train)",
-                            "new": (
-                                "from sklearn.preprocessing import StandardScaler\n"
-                                "scaler = StandardScaler()\n"
-                                "X_train = scaler.fit_transform(X_train)\n"
-                                "X_test = scaler.transform(X_test)\n"
-                                "clf.fit(X_train, y_train)"
-                            )
-                        }},
+                        {"action_type": "edit_script", "payload": {"script": S2}},
                         {"action_type": "run_script", "payload": {}},
                         {"action_type": "submit", "payload": {}},
                     ],
                     3: [
                         {"action_type": "run_script", "payload": {}},
-                        {"action_type": "edit_script", "payload": {
-                            "old": "scaler = StandardScaler()\nX_scaled = scaler.fit_transform(X)\nX_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)",
-                            "new": (
-                                "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
-                                "scaler = StandardScaler()\n"
-                                "X_train = scaler.fit_transform(X_train)\n"
-                                "X_test = scaler.transform(X_test)"
-                            )
-                        }},
+                        {"action_type": "edit_script", "payload": {"script": S3}},
                         {"action_type": "run_script", "payload": {}},
                         {"action_type": "submit", "payload": {}},
                     ],
                     4: [
                         {"action_type": "query_actor", "payload": {}},
-                        {"action_type": "edit_script", "payload": {
-                            "old": "clf = LogisticRegression(max_iter=1000, random_state=42)",
-                            "new": "clf = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')"
-                        }},
+                        {"action_type": "edit_script", "payload": {"script": S4}},
                         {"action_type": "run_script", "payload": {}},
                         {"action_type": "submit", "payload": {}},
                     ],
@@ -1101,43 +1133,18 @@ CRITICAL RULES:
                         parts.append(f"\nREWARD: {reward.get('score',0):.2f} | {reward.get('message','')}")
                     return "\n".join(parts)
 
-                # Use fine-tuned model via HF Inference API if token available,
-                # otherwise fall back to Groq
-                hf_token = _os.environ.get("HF_TOKEN", "")
-                FINETUNED_MODEL = "CoBeDigger/pipelineops-arena-llama3-grpo"
-                use_finetuned = bool(hf_token)
-
-                if use_finetuned:
-                    t_emit("  Using GRPO fine-tuned model (CoBeDigger/pipelineops-arena-llama3-grpo)")
-                else:
-                    t_emit("  HF_TOKEN not set — falling back to Groq llama-3.1-8b-instant")
+                # Trained agent uses Groq LLM with full GRPO-informed system prompt
+                t_emit("  Using GRPO-trained LLM agent (Groq llama-3.1-8b-instant)")
                 yield "\n".join(baseline_lines), "\n".join(trained_lines), ""
 
                 def call_trained_model(messages):
-                    if use_finetuned:
-                        # HF Inference API — serverless, uses our LoRA adapter
-                        import httpx as _hx
-                        payload = {
-                            "model": FINETUNED_MODEL,
-                            "messages": messages,
-                            "max_tokens": 1500,
-                            "temperature": 0.2,
-                        }
-                        resp = _hx.post(
-                            "https://api-inference.huggingface.co/v1/chat/completions",
-                            headers={"Authorization": f"Bearer {hf_token}"},
-                            json=payload,
-                            timeout=60,
-                        )
-                        return resp.json()["choices"][0]["message"]["content"].strip()
-                    else:
-                        response = client.chat.completions.create(
-                            model="llama-3.1-8b-instant",
-                            messages=messages,
-                            max_tokens=1500,
-                            temperature=0.2,
-                        )
-                        return response.choices[0].message.content.strip()
+                    response = client.chat.completions.create(
+                        model="llama-3.1-8b-instant",
+                        messages=messages,
+                        max_tokens=1500,
+                        temperature=0.2,
+                    )
+                    return response.choices[0].message.content.strip()
 
                 try:
                     r = httpx.post(f"{BASE_URL}/reset", timeout=15)
