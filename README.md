@@ -34,7 +34,7 @@ tags:
 | 🌐 **Live Environment** | [https://huggingface.co/spaces/CoBeDigger/DataEngEnv](https://huggingface.co/spaces/CoBeDigger/DataEngEnv) |
 | 🤖 **Trained Model** | [CoBeDigger/pipelineops-arena-llama3-grpo](https://huggingface.co/CoBeDigger/pipelineops-arena-llama3-grpo) |
 | 📈 **Reward Curve** | [View on Model Repo](https://huggingface.co/CoBeDigger/pipelineops-arena-llama3-grpo/blob/main/reward_curve.png) |
-| 📓 **Training Notebook** | *(Kaggle notebook link)* |
+| 📓 **Training Notebook** | *(Add your Kaggle/Colab link here)* |
 
 ---
 
@@ -127,7 +127,7 @@ The reward curve shows a clear upward learning trend — the agent progresses fr
 | Field | Type | Description |
 |---|---|---|
 | `current_stage` | `int` | Current pipeline stage (1-4) |
-| `step_number` | `int` | Current step (max 20) |
+| `step_number` | `int` | Current step (max 60 total, 15 per stage) |
 | `script_content` | `str` | The current state of the pipeline script |
 | `last_run_output` | `str` | stdout from the last `run_script` action |
 | `last_run_error` | `str \| null` | stderr / exception if the script crashed |
@@ -217,7 +217,7 @@ ENV_URL = "https://cobedigger-dataengenv.hf.space"
 obs = requests.post(f"{ENV_URL}/reset").json()
 
 # Agent loop
-for step in range(20):
+for step in range(60):  # 60 total steps, 15 per stage
     action = your_agent.decide(obs)
     result = requests.post(f"{ENV_URL}/step", json=action).json()
     obs = result["observation"]

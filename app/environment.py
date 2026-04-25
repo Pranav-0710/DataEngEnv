@@ -12,6 +12,7 @@ from app.actors.code_reviewer import CodeReviewer
 from app.actors.mlops_bot import MLOpsBot
 from app.graders import grader_stage1, grader_stage2, grader_stage3, grader_stage4
 from app.models import Action, Observation, Reward, StateResponse, StepResponse
+from app.reward import RewardEngine
 from app.tasks import (
     stage1_data_repair,
     stage2_training_monitor,
@@ -45,6 +46,7 @@ class DataEngEnvironment:
 
         self._code_reviewer = CodeReviewer()
         self._mlops_bot = MLOpsBot()
+        self._reward_engine = RewardEngine()
 
     def reset(self, task_id: int | None = None) -> Observation:
         self.current_task_id = 1
@@ -55,6 +57,7 @@ class DataEngEnvironment:
         self.stages_completed = []
         self.episode_score = 0.0
         self.actor_feedback = ""
+        self._reward_engine = RewardEngine()
         self.done = False
         self.last_run_output = ""
         self.last_run_error = None
@@ -309,12 +312,30 @@ class DataEngEnvironment:
             message = f"{message} Stage or episode step limit reached."
 
         obs = self._get_observation(partial_schema=schema, partial_preview=preview)
-        reward_score = self.episode_score if action.action_type == "submit" else 0.0
-        if action.action_type == "submit" and not self.done:
-            reward_score = score
+
+        # Use RewardEngine for dense partial rewards on every action
+        shaped_reward = self._reward_engine.compute_reward(
+            task_id=self.current_stage,
+            action_type=action.action_type,
+            action_payload=action.payload or {},
+            observation={
+                "last_run_error": self.last_run_error,
+                "data_preview": preview,
+            },
+            grader_score=score,
+            step_number=self.step_number,
+        )
+
+        # For submit actions, use the episode score as the final reward
+        if action.action_type == "submit":
+            if self.done:
+                shaped_reward = self._make_reward(self.episode_score, message, True)
+            else:
+                shaped_reward = self._make_reward(score, message, False)
+
         return StepResponse(
             observation=obs,
-            reward=self._make_reward(reward_score, message, self.done),
+            reward=shaped_reward,
         )
 
     def submit_grader(self, task_id: int | None = None) -> Reward:
@@ -326,7 +347,7 @@ class DataEngEnvironment:
         return StateResponse(
             task_id=self.current_task_id,
             step_number=self.step_number,
-            max_steps=60,
+            max_steps=20,
             current_script=self.current_script,
             episode_done=self.done,
             task_description=self.task_description,
