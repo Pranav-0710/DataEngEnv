@@ -2,6 +2,9 @@ venv/
 __pycache__/
 *.pyc
 .env
+*.egg-info/
+dist/
+build/
 
 # AI Agent Specific Artifacts to Never Push
 .agent/
