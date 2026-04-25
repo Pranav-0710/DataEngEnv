@@ -640,15 +640,25 @@ CRITICAL RULES:
 - Stage 4: add class_weight='balanced' to LogisticRegression"""
 
                 def parse_action(raw_text):
-                    match = _re.search(r'\{[^{}]*("payload"\s*:\s*\{[^{}]*\})?[^{}]*\}', raw_text, _re.DOTALL)
-                    if match:
-                        try:
-                            action = json.loads(match.group().replace("'", '"'))
-                            if "action_type" in action:
-                                action.setdefault("payload", {})
-                                return action
-                        except json.JSONDecodeError:
-                            pass
+                    # Find the outermost JSON object by tracking brace depth
+                    start = raw_text.find('{')
+                    if start != -1:
+                        depth = 0
+                        for i, ch in enumerate(raw_text[start:], start):
+                            if ch == '{':
+                                depth += 1
+                            elif ch == '}':
+                                depth -= 1
+                                if depth == 0:
+                                    candidate = raw_text[start:i+1]
+                                    try:
+                                        action = json.loads(candidate)
+                                        if "action_type" in action:
+                                            action.setdefault("payload", {})
+                                            return action
+                                    except json.JSONDecodeError:
+                                        pass
+                                    break
                     for atype in ["edit_script", "run_script", "submit", "inspect_data", "query_actor"]:
                         if atype in raw_text:
                             return {"action_type": atype, "payload": {}}
@@ -693,7 +703,7 @@ CRITICAL RULES:
                             response = client.chat.completions.create(
                                 model="llama-3.1-8b-instant",
                                 messages=trimmed,
-                                max_tokens=800,
+                                max_tokens=1500,
                                 temperature=0.2,
                             )
                             raw = response.choices[0].message.content.strip()
