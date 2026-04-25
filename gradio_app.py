@@ -1018,14 +1018,26 @@ Available actions:
   {"action_type": "submit",       "payload": {}}
 
 CRITICAL RULES:
-- edit_script MUST replace the ENTIRE script
+- edit_script MUST replace the ENTIRE script (all imports included)
 - After every edit_script, call run_script ONCE to verify
 - If run_script output contains "Accuracy:" with NO error → call submit IMMEDIATELY
 - DO NOT edit again after a clean run — just submit
-- Stage 1: rename 'age_years' → 'age' AND add df.dropna() before any processing
-- Stage 2: StandardScaler must be fit ONLY on X_train (after train_test_split)
-- Stage 3: call scaler.fit_transform AFTER train_test_split
-- Stage 4: add class_weight='balanced' to LogisticRegression; use stratify=y in split"""
+
+STAGE-SPECIFIC FIXES (use LogisticRegression max_iter=1000 unless told otherwise):
+- Stage 2: StandardScaler must be fit ONLY on X_train (AFTER train_test_split, not before)
+- Stage 3: move scaler.fit_transform to AFTER train_test_split; use ALL features with X=df.drop(columns=['target']); keep LogisticRegression
+- Stage 4: add class_weight='balanced' to LogisticRegression; use test_size=0.25, stratify=y
+
+CORRECT PATTERN for Stages 2-4:
+X = df.drop(columns=['target'])
+y = df['target']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test  = scaler.transform(X_test)
+clf = LogisticRegression(max_iter=1000, random_state=42)
+clf.fit(X_train, y_train)
+print('Accuracy:', clf.score(X_test, y_test))"""
 
                 def _parse(raw):
                     s = raw.find('{')
