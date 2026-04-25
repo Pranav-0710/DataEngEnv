@@ -31,6 +31,6 @@ action_space:
   - {type: query_actor, payload: {}}
   - {type: submit, payload: {}}
 reward_range: [0.0, 1.0]
-max_steps: 20
+max_steps: 60
 cascade: true
 loop_on_failure: true

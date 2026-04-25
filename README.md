@@ -155,14 +155,22 @@ DataEngEnv provides **partial credit throughout the episode** — not just a bin
 | Stage | Action | Reward |
 |---|---|---|
 | Stage 1 | First `inspect_data` or `check_schema` | +0.1 |
-| Stage 1 | `edit_script` fixes column name | +0.3 |
+| Stage 1 | `edit_script` fixes column name (age_years→age) | +0.2 |
+| Stage 1 | `edit_script` adds `dropna`/`fillna` | +0.1 |
 | Stage 1 | `run_script` with no error | +0.2 |
-| Stage 2 | `inspect_data` reveals divergence | +0.15 |
-| Stage 2 | `edit_script` adds StandardScaler | +0.3 |
-| Stage 3 | `run_script` (sees suspicious accuracy) | +0.2 |
+| Stage 2 | `inspect_data` | +0.1 |
+| Stage 2 | `run_script` (observes NaN loss divergence) | +0.1 |
+| Stage 2 | `edit_script` adds `StandardScaler` | +0.3 |
+| Stage 2 | `run_script` clean after fix | +0.2 |
+| Stage 3 | `inspect_data` | +0.1 |
+| Stage 3 | `run_script` (sees suspicious 98% accuracy) | +0.1 |
 | Stage 3 | `edit_script` moves fit after split | +0.3 |
+| Stage 3 | `run_script` clean after fix | +0.2 |
+| Stage 3 | `submit` without editing | -0.2 |
+| Stage 4 | `inspect_data` | +0.1 |
 | Stage 4 | `query_actor` gets fairness feedback | +0.1 |
-| Stage 4 | `edit_script` adds class_weight balanced | +0.3 |
+| Stage 4 | `edit_script` adds `class_weight='balanced'` | +0.3 |
+| Stage 4 | `run_script` | +0.1 |
 | All | `submit` with correct fix | **grader score** |
 
 Rewards are cumulative and capped at 1.0 per stage. The terminal reward is the grader score (0.0–1.0).

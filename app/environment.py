@@ -49,9 +49,10 @@ class DataEngEnvironment:
         self._reward_engine = RewardEngine()
 
     def reset(self, task_id: int | None = None) -> Observation:
-        self.current_task_id = 1
+        start_stage = task_id if task_id in {1, 2, 3, 4} else 1
+        self.current_task_id = start_stage
         self.step_number = 0
-        self.current_stage = 1
+        self.current_stage = start_stage
         self.stage_step_number = 0
         self.loop_count = 0
         self.stages_completed = []
@@ -61,7 +62,7 @@ class DataEngEnvironment:
         self.done = False
         self.last_run_output = ""
         self.last_run_error = None
-        self._load_stage(1)
+        self._load_stage(start_stage)
         return self._get_observation()
 
     def _load_stage(self, stage: int) -> None:
@@ -326,12 +327,19 @@ class DataEngEnvironment:
             step_number=self.step_number,
         )
 
-        # For submit actions, use the episode score as the final reward
+        # For submit, override score but keep partial breakdown
         if action.action_type == "submit":
-            if self.done:
-                shaped_reward = self._make_reward(self.episode_score, message, True)
-            else:
-                shaped_reward = self._make_reward(score, message, False)
+            final_score = self.episode_score if self.done else score
+            shaped_reward = Reward(
+                score=float(max(0.0, min(1.0, final_score))),
+                partial_rewards={
+                    **shaped_reward.partial_rewards,
+                    "episode_score": float(max(0.0, min(1.0, self.episode_score))),
+                    "current_stage": float(self.current_stage),
+                },
+                message=message,
+                is_terminal=self.done,
+            )
 
         return StepResponse(
             observation=obs,
@@ -347,7 +355,7 @@ class DataEngEnvironment:
         return StateResponse(
             task_id=self.current_task_id,
             step_number=self.step_number,
-            max_steps=20,
+            max_steps=60,
             current_script=self.current_script,
             episode_done=self.done,
             task_description=self.task_description,

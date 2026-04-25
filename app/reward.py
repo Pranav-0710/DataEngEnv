@@ -6,21 +6,26 @@ from app.models import Reward
 
 
 class RewardEngine:
+    """Dense partial reward shaping aligned to the 4-stage cascade.
+
+    Stage 1 — Data Repair:    rename age_years→age, dropna
+    Stage 2 — Training Monitor: add StandardScaler before MLPClassifier
+    Stage 3 — Eval Validation:  move scaler.fit after train_test_split
+    Stage 4 — Deploy Gate:      add class_weight='balanced'
+    """
+
     def __init__(self) -> None:
-        # Episode-scoped memory per task_id
         self._state: Dict[int, Dict[str, Any]] = {}
 
     def _get_task_state(self, task_id: int) -> Dict[str, Any]:
         if task_id not in self._state:
             self._state[task_id] = {
-                "awarded": {},  # partial_id -> float
+                "awarded": {},
                 "has_edited": False,
-                "last_edit_step": None,
             }
         return self._state[task_id]
 
     def _add_partial(self, st: Dict[str, Any], key: str, value: float) -> bool:
-        # Only add if not already awarded
         if key in st["awarded"]:
             return False
         st["awarded"][key] = float(value)
@@ -37,12 +42,8 @@ class RewardEngine:
         err = (observation or {}).get("last_run_error")
         return err is None or str(err).strip() == ""
 
-    def _preview_text(self, observation: dict) -> str:
-        return str((observation or {}).get("data_preview", ""))
-
     def _compute_score(self, st: Dict[str, Any]) -> float:
         total = float(sum(st["awarded"].values()))
-        # Clamp to strictly open interval (0.01, 0.99)
         return max(0.01, min(0.99, total))
 
     def compute_reward(
@@ -55,146 +56,136 @@ class RewardEngine:
         step_number: int,
     ) -> Reward:
         st = self._get_task_state(task_id)
-        awarded_now: Dict[str, float] = {}
+        msg_parts = []
         action_type = (action_type or "").strip()
         payload_text = self._payload_text(action_payload)
-        preview = self._preview_text(observation)
-        msg_parts = []
 
-        # query_actor reward — applies to ALL stages
+        # ── query_actor — applies to ALL stages ──────────────────────
         if action_type == "query_actor":
+            if self._add_partial(st, "actor_query", 0.1):
+                msg_parts.append("+0.1 actor consulted")
             return Reward(
-                score=0.05,
-                partial_rewards={"actor_query": 0.05},
-                message="Actor consulted",
+                score=self._compute_score(st),
+                partial_rewards=dict(st["awarded"]),
+                message=", ".join(msg_parts) if msg_parts else "actor already consulted",
                 is_terminal=False,
             )
 
-        # TASK 1
+        # ── STAGE 1 — Data Repair ────────────────────────────────────
         if task_id == 1:
             if action_type in {"inspect_data", "check_schema"}:
-                if self._add_partial(st, "t1_inspect_or_schema", 0.1):
-                    awarded_now["t1_inspect_or_schema"] = 0.1
-                    msg_parts.append("T1: +0.1 inspect/check_schema")
-
-            if action_type == "edit_script":
-                if ("age_years" not in payload_text) and ("age" in payload_text):
-                    if self._add_partial(st, "t1_edit_fix", 0.3):
-                        awarded_now["t1_edit_fix"] = 0.3
-                        msg_parts.append("T1: +0.3 edit replaced age_years -> age")
-
-            if action_type == "run_script" and self._no_error(observation):
-                if self._add_partial(st, "t1_run_clean", 0.2):
-                    awarded_now["t1_run_clean"] = 0.2
-                    msg_parts.append("T1: +0.2 run without error")
-
-        # TASK 2
-        elif task_id == 2:
-            if action_type == "inspect_data":
-                if ("nan" in preview.lower()) and self._add_partial(st, "t2_inspect_nan", 0.15):
-                    awarded_now["t2_inspect_nan"] = 0.15
-                    msg_parts.append("T2: +0.15 NaN counts revealed")
-                if ("9999999" in preview or "outlier" in preview.lower()) and self._add_partial(
-                    st, "t2_inspect_outlier", 0.15
-                ):
-                    awarded_now["t2_inspect_outlier"] = 0.15
-                    msg_parts.append("T2: +0.15 outlier revealed")
-
-            if action_type == "edit_script":
-                if ("dropna" in payload_text) or ("fillna" in payload_text):
-                    if self._add_partial(st, "t2_edit_nan", 0.3):
-                        awarded_now["t2_edit_nan"] = 0.3
-                        msg_parts.append("T2: +0.3 dropna/fillna present")
-                if ("clip(" in payload_text) or ("quantile(" in payload_text):
-                    if self._add_partial(st, "t2_edit_outlier", 0.2):
-                        awarded_now["t2_edit_outlier"] = 0.2
-                        msg_parts.append("T2: +0.2 clip/quantile present")
-
-            if action_type == "run_script" and self._no_error(observation):
-                if self._add_partial(st, "t2_run_clean", 0.2):
-                    awarded_now["t2_run_clean"] = 0.2
-                    msg_parts.append("T2: +0.2 run without error")
-
-        # TASK 3
-        elif task_id == 3:
-            if action_type == "inspect_data":
-                if self._add_partial(st, "t3_inspect", 0.1):
-                    awarded_now["t3_inspect"] = 0.1
-                    msg_parts.append("T3: +0.1 inspect")
-
-            if action_type == "run_script":
-                if self._add_partial(st, "t3_run", 0.2):
-                    awarded_now["t3_run"] = 0.2
-                    msg_parts.append("T3: +0.2 run_script")
-                if st.get("has_edited") and self._no_error(observation):
-                    if self._add_partial(st, "t3_run_clean_post_edit", 0.2):
-                        awarded_now["t3_run_clean_post_edit"] = 0.2
-                        msg_parts.append("T3: +0.2 clean run after edit")
+                if self._add_partial(st, "s1_inspect", 0.1):
+                    msg_parts.append("S1: +0.1 inspect/schema")
 
             if action_type == "edit_script":
                 st["has_edited"] = True
-                st["last_edit_step"] = step_number
+                # Check for column rename fix (age_years → age)
+                if "age" in payload_text and "age_years" not in payload_text:
+                    if self._add_partial(st, "s1_rename_fix", 0.2):
+                        msg_parts.append("S1: +0.2 column rename fix")
+                # Check for NaN handling
+                if "dropna" in payload_text or "fillna" in payload_text:
+                    if self._add_partial(st, "s1_nan_fix", 0.1):
+                        msg_parts.append("S1: +0.1 NaN handling added")
+
+            if action_type == "run_script" and self._no_error(observation):
+                if self._add_partial(st, "s1_clean_run", 0.2):
+                    msg_parts.append("S1: +0.2 clean run")
+
+        # ── STAGE 2 — Training Monitor (StandardScaler) ─────────────
+        elif task_id == 2:
+            if action_type == "inspect_data":
+                if self._add_partial(st, "s2_inspect", 0.1):
+                    msg_parts.append("S2: +0.1 data inspected")
+
+            if action_type == "run_script":
+                # Running reveals NaN loss / divergence
+                if self._add_partial(st, "s2_run_diagnose", 0.1):
+                    msg_parts.append("S2: +0.1 divergence observed")
+
+            if action_type == "edit_script":
+                st["has_edited"] = True
+                # Check for StandardScaler addition
+                if "standardscaler" in payload_text or "standard_scaler" in payload_text:
+                    if self._add_partial(st, "s2_scaler_fix", 0.3):
+                        msg_parts.append("S2: +0.3 StandardScaler added")
+                # Also accept MinMaxScaler or normalize
+                elif "minmaxscaler" in payload_text or "normalize" in payload_text:
+                    if self._add_partial(st, "s2_scaler_fix", 0.2):
+                        msg_parts.append("S2: +0.2 alternative scaler added")
+
+            if action_type == "run_script" and st.get("has_edited") and self._no_error(observation):
+                if self._add_partial(st, "s2_clean_run", 0.2):
+                    msg_parts.append("S2: +0.2 clean run after fix")
+
+        # ── STAGE 3 — Eval Validation (Data Leakage) ────────────────
+        elif task_id == 3:
+            if action_type == "inspect_data":
+                if self._add_partial(st, "s3_inspect", 0.1):
+                    msg_parts.append("S3: +0.1 data inspected")
+
+            if action_type == "run_script":
+                # Running reveals suspicious 98% accuracy
+                if self._add_partial(st, "s3_run_suspicious", 0.1):
+                    msg_parts.append("S3: +0.1 suspicious accuracy observed")
+
+            if action_type == "edit_script":
+                st["has_edited"] = True
                 txt = payload_text
-                # Detect move: train_test_split occurs before scaler.fit or fit_transform (or general fit() fallback)
+                # Detect: train_test_split appears before scaler.fit
                 idx_split = txt.find("train_test_split")
-                idx_fit_scaler = min([i for i in [txt.find("scaler.fit("), txt.find("scaler.fit_transform(")] if i != -1] or [-1])
-                idx_fit_any = txt.find("fit(")
-                moved = False
-                if idx_split != -1 and idx_fit_scaler != -1:
-                    moved = idx_split < idx_fit_scaler
-                elif idx_split != -1 and idx_fit_any != -1:
-                    moved = idx_split < idx_fit_any
-                if moved and self._add_partial(st, "t3_edit_fix", 0.3):
-                    awarded_now["t3_edit_fix"] = 0.3
-                    msg_parts.append("T3: +0.3 fit after split detected")
+                idx_fit = min(
+                    [i for i in [txt.find("scaler.fit("), txt.find("fit_transform(")] if i != -1]
+                    or [-1]
+                )
+                if idx_split != -1 and idx_fit != -1 and idx_split < idx_fit:
+                    if self._add_partial(st, "s3_leakage_fix", 0.3):
+                        msg_parts.append("S3: +0.3 fit moved after split")
+                elif idx_split != -1 or idx_fit != -1:
+                    if self._add_partial(st, "s3_partial_edit", 0.1):
+                        msg_parts.append("S3: +0.1 relevant edit attempt")
 
-            if action_type == "submit":
-                if not st.get("has_edited"):
-                    # Record the penalty in partials, but terminal score is grader_score
-                    self._add_partial(st, "t3_submit_without_edit", -0.2)
-                    if "t3_submit_without_edit" not in awarded_now:
-                        awarded_now["t3_submit_without_edit"] = -0.2
-                        msg_parts.append("T3: -0.2 submit without edit")
+            if action_type == "run_script" and st.get("has_edited") and self._no_error(observation):
+                if self._add_partial(st, "s3_clean_run", 0.2):
+                    msg_parts.append("S3: +0.2 clean run after fix")
 
-        # TASK 4 (Stage 4 — Deployment Gate)
+            if action_type == "submit" and not st.get("has_edited"):
+                self._add_partial(st, "s3_submit_no_edit", -0.2)
+                msg_parts.append("S3: -0.2 submitted without editing")
+
+        # ── STAGE 4 — Deploy Gate (Fairness) ─────────────────────────
         elif task_id == 4:
-            payload_str = str(action_payload)
             if action_type == "inspect_data":
                 if self._add_partial(st, "s4_inspect", 0.1):
-                    awarded_now["s4_inspect"] = 0.1
-                    msg_parts.append("S4: +0.1 inspected data")
+                    msg_parts.append("S4: +0.1 data inspected")
 
-            elif action_type == "edit_script":
+            if action_type == "edit_script":
+                st["has_edited"] = True
+                payload_str = str(action_payload)
                 if "class_weight" in payload_str:
                     if self._add_partial(st, "s4_fairness_fix", 0.3):
-                        awarded_now["s4_fairness_fix"] = 0.3
-                        msg_parts.append("S4: +0.3 fairness fix detected")
+                        msg_parts.append("S4: +0.3 class_weight balanced added")
                 elif "stratify" in payload_str:
-                    if self._add_partial(st, "s4_stratify", 0.2):
-                        awarded_now["s4_stratify"] = 0.2
-                        msg_parts.append("S4: +0.2 stratified sampling detected")
+                    if self._add_partial(st, "s4_stratify", 0.1):
+                        msg_parts.append("S4: +0.1 stratified sampling")
                 else:
-                    if self._add_partial(st, "s4_edit", 0.05):
-                        awarded_now["s4_edit"] = 0.05
+                    if self._add_partial(st, "s4_generic_edit", 0.05):
                         msg_parts.append("S4: +0.05 script edited")
 
-            elif action_type == "run_script":
+            if action_type == "run_script":
                 if self._add_partial(st, "s4_run", 0.1):
-                    awarded_now["s4_run"] = 0.1
                     msg_parts.append("S4: +0.1 script executed")
 
-        # Determine terminal and score
+        # ── Terminal / Score ──────────────────────────────────────────
         is_terminal = action_type == "submit"
         if is_terminal:
             total_score = float(grader_score)
         else:
             total_score = self._compute_score(st)
 
-        # Clamp final score to strictly open interval (0.01, 0.99)
-        total_score = max(0.01, min(0.99, total_score))
+        total_score = max(0.0, min(1.0, total_score))
 
-        # Prepare message and cumulative partials
-        message = ", ".join(msg_parts) if msg_parts else "no reward"
+        message = ", ".join(msg_parts) if msg_parts else "no partial reward"
         cumulative_partials = {k: float(v) for k, v in st["awarded"].items()}
 
         return Reward(
@@ -203,4 +194,3 @@ class RewardEngine:
             message=message,
             is_terminal=is_terminal,
         )
-
