@@ -612,28 +612,32 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv") as demo:
 
 RESPOND WITH ONLY A JSON OBJECT. No explanation. No markdown.
 
+ALWAYS use full script replacement for edit_script:
+{"action_type": "edit_script", "payload": {"script": "FULL corrected script here"}}
+
+Never use the old/new format — it breaks when the script has already been partially edited.
+
 Actions:
 1. {"action_type": "inspect_data", "payload": {}}
 2. {"action_type": "run_script", "payload": {}}
-3. {"action_type": "edit_script", "payload": {"old": "exact line from script", "new": "replacement"}}
-4. {"action_type": "edit_script", "payload": {"script": "FULL corrected script here"}}
-5. {"action_type": "query_actor", "payload": {}}
-6. {"action_type": "submit", "payload": {}}
+3. {"action_type": "edit_script", "payload": {"script": "FULL corrected script here"}}
+4. {"action_type": "query_actor", "payload": {}}
+5. {"action_type": "submit", "payload": {}}
 
-STRATEGY:
-1. Inspect data OR run script ONCE to see the error
-2. Use edit_script to fix the bug — prefer option 4 (full script) if unsure about exact text match
-3. Run script ONCE to verify fix
-4. Submit immediately if no error
+STRATEGY (follow exactly):
+Stage 1 — run_script → see error → edit_script (full replacement fixing ALL bugs at once) → run_script → submit
+Stage 2 — inspect_data → edit_script (full replacement adding StandardScaler) → run_script → submit
+Stage 3 — run_script → edit_script (full replacement moving scaler.fit after split) → run_script → submit
+Stage 4 — query_actor → edit_script (full replacement adding class_weight='balanced') → run_script → submit
 
-RULES:
-- Maximum 5 actions per stage
-- NEVER inspect more than once, NEVER run more than twice
-- Submit as soon as output looks correct
-- If you see KeyError 'age_years': rename to 'age' and add df.dropna(inplace=True) before feature selection
-- If loss is NaN: add StandardScaler before classifier
-- If accuracy suspiciously high (>0.95): move scaler.fit() to AFTER train_test_split()
-- If fairness issue: add class_weight='balanced' to classifier"""
+CRITICAL RULES:
+- Fix ALL bugs for the stage in ONE single edit_script call — never split fixes across multiple edits
+- NEVER use old/new format — always replace the full script
+- Submit as soon as run_script shows no error and prints Accuracy
+- Stage 1 has TWO bugs: rename age_years→age AND add df.dropna() before scaling — fix BOTH in one edit
+- Stage 2: add StandardScaler fitted on X_train only, transform X_test separately
+- Stage 3: move scaler.fit() to AFTER train_test_split(), fit only on X_train
+- Stage 4: add class_weight='balanced' to LogisticRegression"""
 
                 def parse_action(raw_text):
                     match = _re.search(r'\{[^{}]*("payload"\s*:\s*\{[^{}]*\})?[^{}]*\}', raw_text, _re.DOTALL)
@@ -783,6 +787,6 @@ RULES:
 if __name__ == "__main__":
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=7861,
         css=CUSTOM_CSS
     )
