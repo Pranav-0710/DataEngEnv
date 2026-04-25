@@ -1147,10 +1147,15 @@ CRITICAL RULES:
                     return response.choices[0].message.content.strip()
 
                 try:
+                    # Double reset with delay to ensure clean state after baseline run
+                    httpx.post(f"{BASE_URL}/reset", timeout=15)
+                    _time.sleep(1.5)
                     r = httpx.post(f"{BASE_URL}/reset", timeout=15)
                     obs = r.json()
                     if "observation" in obs:
                         obs = obs["observation"]
+                    t_emit(f"  Env reset. Stage: {obs.get('current_stage',1)}, Done: {obs.get('done',False)}")
+                    yield "\n".join(baseline_lines), "\n".join(trained_lines), ""
 
                     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
                     initial = format_obs(obs)
