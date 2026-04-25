@@ -555,15 +555,15 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv") as demo:
 
         # ── BASELINE TAB ──────────────────────────────────────────────────────
         with gr.Tab("🚀 Run Baseline"):
-            gr.Markdown("### Run the hardcoded expert baseline — watch every action live as it executes")
+            gr.Markdown("### Run the live LLM agent — Llama 3.1 reasons through each stage in real time")
 
-            run_btn = gr.Button("▶  Run Full Baseline (All 4 Stages)", elem_classes="btn-primary")
+            run_btn = gr.Button("▶  Run LLM Agent (All 4 Stages)", elem_classes="btn-primary")
 
             live_output = gr.Textbox(
                 label="⚡ Live Action Log",
                 lines=28,
                 interactive=False,
-                placeholder="Click Run to start the baseline agent…\n\nYou will see each action appear here in real-time as the agent\nworks through all 4 stages of the pipeline.",
+                placeholder="Click Run to start the LLM agent…\n\nThe agent reads the error logs and script, reasons about the bug,\nand generates fix actions entirely on its own.",
                 elem_classes="code-box"
             )
 
@@ -584,6 +584,8 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv") as demo:
 
             def run_baseline_streaming():
                 import time as _time
+                import os as _os
+                import re as _re
                 log = []
 
                 def emit(line):
@@ -591,11 +593,80 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv") as demo:
                     return "\n".join(log)
 
                 yield emit("╔══════════════════════════════════════════════════════╗")
-                yield emit("║         PipelineOps Arena — Baseline Run             ║")
+                yield emit("║      PipelineOps Arena — Live LLM Agent Run          ║")
                 yield emit("╚══════════════════════════════════════════════════════╝\n")
 
+                groq_key = _os.environ.get("GROQ_API_KEY", "")
+                if not groq_key:
+                    yield emit("❌ GROQ_API_KEY not set. Add it to the HF Space secrets.")
+                    return
+
                 try:
-                    # Reset
+                    from groq import Groq
+                    client = Groq(api_key=groq_key)
+                except ImportError:
+                    yield emit("❌ groq package not installed. Add 'groq' to requirements.txt.")
+                    return
+
+                SYSTEM_PROMPT = """You are debugging a broken ML pipeline. Fix it fast.
+
+RESPOND WITH ONLY A JSON OBJECT. No explanation. No markdown.
+
+Actions:
+1. {"action_type": "inspect_data", "payload": {}}
+2. {"action_type": "run_script", "payload": {}}
+3. {"action_type": "edit_script", "payload": {"old": "exact line from script", "new": "replacement"}}
+4. {"action_type": "edit_script", "payload": {"script": "FULL corrected script here"}}
+5. {"action_type": "query_actor", "payload": {}}
+6. {"action_type": "submit", "payload": {}}
+
+STRATEGY:
+1. Inspect data OR run script ONCE to see the error
+2. Use edit_script to fix the bug — prefer option 4 (full script) if unsure about exact text match
+3. Run script ONCE to verify fix
+4. Submit immediately if no error
+
+RULES:
+- Maximum 5 actions per stage
+- NEVER inspect more than once, NEVER run more than twice
+- Submit as soon as output looks correct
+- If you see KeyError 'age_years': rename to 'age' and add df.dropna(inplace=True) before feature selection
+- If loss is NaN: add StandardScaler before classifier
+- If accuracy suspiciously high (>0.95): move scaler.fit() to AFTER train_test_split()
+- If fairness issue: add class_weight='balanced' to classifier"""
+
+                def parse_action(raw_text):
+                    match = _re.search(r'\{[^{}]*("payload"\s*:\s*\{[^{}]*\})?[^{}]*\}', raw_text, _re.DOTALL)
+                    if match:
+                        try:
+                            action = json.loads(match.group().replace("'", '"'))
+                            if "action_type" in action:
+                                action.setdefault("payload", {})
+                                return action
+                        except json.JSONDecodeError:
+                            pass
+                    for atype in ["edit_script", "run_script", "submit", "inspect_data", "query_actor"]:
+                        if atype in raw_text:
+                            return {"action_type": atype, "payload": {}}
+                    return {"action_type": "run_script", "payload": {}}
+
+                def format_obs(obs, reward=None):
+                    parts = [f"Stage {obs.get('current_stage','?')} | Step {obs.get('stage_step_number','?')}"]
+                    if obs.get("last_run_error"):
+                        parts.append(f"\nERROR:\n{str(obs['last_run_error'])[:400]}")
+                    if obs.get("last_run_output"):
+                        parts.append(f"\nOUTPUT:\n{str(obs['last_run_output'])[:300]}")
+                    if obs.get("data_preview"):
+                        parts.append(f"\nDATA:\n{str(obs['data_preview'])[:400]}")
+                    if obs.get("actor_feedback"):
+                        parts.append(f"\nREVIEWER:\n{str(obs['actor_feedback'])[:300]}")
+                    if obs.get("script_content"):
+                        parts.append(f"\nSCRIPT:\n{obs['script_content'][:800]}")
+                    if reward:
+                        parts.append(f"\nREWARD: {reward.get('score',0):.2f} | {reward.get('message','')}")
+                    return "\n".join(parts)
+
+                try:
                     r = httpx.post(f"{BASE_URL}/reset", timeout=15)
                     obs = r.json()
                     if "observation" in obs:
@@ -603,46 +674,47 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv") as demo:
                     yield emit(f"✅ Environment reset → Stage 1: {STAGE_LABELS[1]}\n")
                     _time.sleep(0.3)
 
-                    steps = [
-                        # Stage 1
-                        {"action_type": "inspect_data", "payload": {}},
-                        {"action_type": "edit_script", "payload": {
-                            "old": "X = df[['age_years', 'salary', 'credit_score', 'loan_amount', 'employment_years']].copy()",
-                            "new": "df.dropna(inplace=True)\nX = df[['age', 'salary', 'credit_score', 'loan_amount', 'employment_years']].copy()"
-                        }},
-                        {"action_type": "run_script", "payload": {}},
-                        {"action_type": "submit", "payload": {}},
-                        # Stage 2
-                        {"action_type": "inspect_data", "payload": {}},
-                        {"action_type": "edit_script", "payload": {
-                            "old": "clf = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=200, random_state=42)",
-                            "new": "from sklearn.preprocessing import StandardScaler\nscaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_test = scaler.transform(X_test)\nclf = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=200, random_state=42)"
-                        }},
-                        {"action_type": "run_script", "payload": {}},
-                        {"action_type": "submit", "payload": {}},
-                        # Stage 3
-                        {"action_type": "run_script", "payload": {}},
-                        {"action_type": "edit_script", "payload": {
-                            "old": "scaler = StandardScaler()\nX_scaled = scaler.fit_transform(X)\nX_train, X_test, y_train, y_test = train_test_split(\n    X_scaled, y, test_size=0.2, random_state=42, stratify=y\n)",
-                            "new": "X_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.2, random_state=42, stratify=y\n)\nscaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_test = scaler.transform(X_test)"
-                        }},
-                        {"action_type": "run_script", "payload": {}},
-                        {"action_type": "submit", "payload": {}},
-                        # Stage 4
-                        {"action_type": "inspect_data", "payload": {}},
-                        {"action_type": "query_actor", "payload": {}},
-                        {"action_type": "edit_script", "payload": {
-                            "old": "clf = LogisticRegression(max_iter=1000, random_state=42)",
-                            "new": "clf = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')"
-                        }},
-                        {"action_type": "run_script", "payload": {}},
-                        {"action_type": "submit", "payload": {}},
-                    ]
+                    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+                    initial = format_obs(obs)
+                    initial += "\n\nStart by inspecting the data, then fix the bug. What is your first action?"
+                    messages.append({"role": "user", "content": initial})
 
                     current_stage = 1
                     step_num = 0
+                    action_history = []
 
-                    for action in steps:
+                    for _ in range(60):
+                        try:
+                            trimmed = [messages[0], messages[1]] + messages[-4:] if len(messages) > 8 else messages
+                            response = client.chat.completions.create(
+                                model="llama-3.1-8b-instant",
+                                messages=trimmed,
+                                max_tokens=800,
+                                temperature=0.2,
+                            )
+                            raw = response.choices[0].message.content.strip()
+                            action = parse_action(raw)
+                        except Exception as e:
+                            yield emit(f"  LLM error: {e}")
+                            action = {"action_type": "run_script", "payload": {}}
+
+                        # Anti-loop guards
+                        action_history.append(action["action_type"])
+                        if len(action_history) >= 2 and action_history[-2] == "submit" and action["action_type"] == "submit":
+                            action = {"action_type": "edit_script", "payload": {"script": obs.get("script_content", "")}}
+                        if len(action_history) >= 4:
+                            last4 = action_history[-4:]
+                            if last4 in [["edit_script", "run_script", "edit_script", "run_script"],
+                                         ["run_script", "edit_script", "run_script", "edit_script"]]:
+                                action = {"action_type": "submit", "payload": {}}
+                        if len(action_history) >= 3 and len(set(action_history[-3:])) == 1:
+                            if action_history[-1] == "inspect_data":
+                                action = {"action_type": "edit_script", "payload": {"script": obs.get("script_content", "")}}
+                            elif action_history[-1] == "submit":
+                                action = {"action_type": "run_script", "payload": {}}
+                            else:
+                                action = {"action_type": "submit", "payload": {}}
+
                         step_num += 1
                         atype = action["action_type"]
                         icon = ACTION_ICONS.get(atype, "▸")
@@ -652,45 +724,55 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv") as demo:
 
                         resp = httpx.post(f"{BASE_URL}/step", json=action, timeout=30)
                         data = resp.json()
-                        obs = data.get("observation", data)
-                        rwd = data.get("reward", {})
-                        score = float(rwd.get("score", 0.0))
-                        msg = rwd.get("message", "")[:55]
+                        obs = data.get("observation", {})
+                        reward = data.get("reward", {})
+                        score = float(reward.get("score", 0.0))
+                        msg = reward.get("message", "")[:55]
                         new_stage = obs.get("current_stage", current_stage)
                         done = obs.get("done", False)
 
-                        # Overwrite the last line with result
                         log[-1] = f"  Step {step_num:02d} │ {icon} {atype.upper():<18} │ score={score:.2f}  {msg}"
                         yield "\n".join(log)
 
-                        # Stage transition banner
                         if new_stage != current_stage:
                             current_stage = new_stage
+                            action_history = []
                             label = STAGE_LABELS.get(current_stage, f"Stage {current_stage}")
                             yield emit(f"\n{'─'*54}")
                             yield emit(f"  ➜ Advancing to Stage {current_stage}: {label}")
                             yield emit(f"{'─'*54}\n")
 
+                        messages.append({"role": "assistant", "content": json.dumps(action)})
+                        next_prompt = format_obs(obs, reward)
+                        if atype == "inspect_data":
+                            next_prompt += "\n\nData inspected. Now use edit_script to fix the bug."
+                        elif atype == "run_script" and obs.get("last_run_error"):
+                            next_prompt += '\n\nScript has error. Use edit_script with full script rewrite: {"action_type":"edit_script","payload":{"script":"..."}}'
+                        elif atype == "run_script" and not obs.get("last_run_error"):
+                            next_prompt += '\n\nScript ran with no error! Submit now: {"action_type":"submit","payload":{}}'
+                        elif atype == "edit_script":
+                            next_prompt += '\n\nEdited. Run script to verify: {"action_type":"run_script","payload":{}}'
+                        messages.append({"role": "user", "content": next_prompt})
+
                         if done:
                             break
 
-                        _time.sleep(0.4)
+                        _time.sleep(0.3)
 
-                    # Final summary
                     status = httpx.get(f"{BASE_URL}/pipeline_status", timeout=10).json()
                     completed = status.get("stages_completed", [])
                     final_score = status.get("episode_score", 0.0)
                     total_steps = status.get("total_steps", step_num)
 
                     yield emit(f"\n╔══════════════════════════════════════════════════════╗")
-                    yield emit(f"║  ✅ EPISODE COMPLETE!                                ║")
+                    yield emit(f"║  EPISODE COMPLETE                                    ║")
                     yield emit(f"║  Stages completed : {str(completed):<34}║")
                     yield emit(f"║  Total steps      : {str(total_steps):<34}║")
                     yield emit(f"║  Final score      : {final_score:.2f}{'':<33}║")
                     yield emit(f"╚══════════════════════════════════════════════════════╝")
 
                 except Exception as e:
-                    yield emit(f"\n❌ Error during baseline run: {e}")
+                    yield emit(f"\n❌ Error during agent run: {e}")
 
             run_btn.click(run_baseline_streaming, inputs=[], outputs=[live_output])
 
