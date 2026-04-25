@@ -110,8 +110,7 @@ def run_episode():
 
     total_steps = 0
     final_score = 0.0
-    last_action_type = None
-    repeat_count = 0
+    action_history = []  # Track ALL actions for pattern detection
 
     print(f"\n{'='*60}")
     print(f"  PIPELINEOPS ARENA — LLM AGENT (Llama 3.1 8B)")
@@ -120,7 +119,6 @@ def run_episode():
     for step in range(60):
         # Ask the LLM what to do
         try:
-            # Keep context manageable — system + first + last 4 messages
             if len(messages) > 8:
                 trimmed = [messages[0], messages[1]] + messages[-4:]
             else:
@@ -129,7 +127,7 @@ def run_episode():
             response = client.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=trimmed,
-                max_tokens=400,
+                max_tokens=800,
                 temperature=0.2,
             )
             raw = response.choices[0].message.content.strip()
@@ -138,40 +136,34 @@ def run_episode():
             print(f"  LLM error: {e}")
             action = {"action_type": "run_script", "payload": {}}
 
-        # Anti-loop: if repeating same action, force progression
-        if action["action_type"] == last_action_type:
-            repeat_count += 1
-            if repeat_count >= 2:
-                if last_action_type == "inspect_data":
-                    # Already inspected, try running the script
-                    action = {"action_type": "run_script", "payload": {}}
-                elif last_action_type == "run_script":
-                    # Already ran, need to edit
-                    # Give LLM one more chance with explicit instruction
-                    messages.append({"role": "user", "content":
-                        "STOP repeating. You must use edit_script now to fix the bug. "
-                        "Look at the error and the script. Find the exact text to replace. "
-                        "Respond with: {\"action_type\": \"edit_script\", \"payload\": {\"old\": \"...\", \"new\": \"...\"}}"
-                    })
-                    try:
-                        response = client.chat.completions.create(
-                            model="llama-3.1-8b-instant",
-                            messages=[messages[0]] + messages[-3:],
-                            max_tokens=400,
-                            temperature=0.3,
-                        )
-                        raw = response.choices[0].message.content.strip()
-                        action = parse_action(raw)
-                    except:
-                        action = {"action_type": "submit", "payload": {}}
-                elif last_action_type == "edit_script":
-                    action = {"action_type": "run_script", "payload": {}}
-                else:
-                    action = {"action_type": "submit", "payload": {}}
-                repeat_count = 0
-        else:
-            repeat_count = 0
-        last_action_type = action["action_type"]
+        # Anti-loop detection
+        action_history.append(action["action_type"])
+
+        # Never submit twice in a row
+        if len(action_history) >= 2 and action_history[-2] == "submit" and action["action_type"] == "submit":
+            action = {"action_type": "edit_script", "payload": {
+                "script": obs.get("script_content", "") if isinstance(obs, dict) else ""
+            }}
+
+        # Detect alternating edit/run pattern — force submit
+        if len(action_history) >= 4:
+            last4 = action_history[-4:]
+            if last4 in [
+                ["edit_script", "run_script", "edit_script", "run_script"],
+                ["run_script", "edit_script", "run_script", "edit_script"],
+            ]:
+                action = {"action_type": "submit", "payload": {}}
+
+        # Same action 3+ times in a row
+        if len(action_history) >= 3 and len(set(action_history[-3:])) == 1:
+            if action_history[-1] == "inspect_data":
+                action = {"action_type": "edit_script", "payload": {
+                    "script": obs.get("script_content", "") if isinstance(obs, dict) else ""
+                }}
+            elif action_history[-1] == "submit":
+                action = {"action_type": "run_script", "payload": {}}
+            else:
+                action = {"action_type": "submit", "payload": {}}
 
         # Take the action
         try:
@@ -190,14 +182,18 @@ def run_episode():
 
             next_prompt = format_observation(obs, reward)
             if action["action_type"] == "inspect_data":
-                next_prompt += "\n\nYou have inspected the data. Now use edit_script to fix the bug. What exact text in the script needs to change?"
+                next_prompt += "\n\nData inspected. Now use edit_script to fix the bug."
             elif action["action_type"] == "run_script" and obs.get("last_run_error"):
-                next_prompt += "\n\nThe script has an error. Use edit_script to fix it. The 'old' field must match text exactly from the SCRIPT above."
+                next_prompt += "\n\nScript has error. Use edit_script to fix. Prefer full script rewrite: {\"action_type\":\"edit_script\",\"payload\":{\"script\":\"full corrected script\"}}"
             elif action["action_type"] == "run_script" and not obs.get("last_run_error"):
-                next_prompt += "\n\nScript ran successfully. Use submit to submit your fix."
+                next_prompt += "\n\nScript ran with no error! Submit now: {\"action_type\":\"submit\",\"payload\":{}}"
             elif action["action_type"] == "edit_script":
-                next_prompt += "\n\nScript edited. Now use run_script to verify the fix works."
+                next_prompt += "\n\nEdited. Run script to verify: {\"action_type\":\"run_script\",\"payload\":{}}"
             messages.append({"role": "user", "content": next_prompt})
+
+            # Reset action history when stage changes
+            if obs.get("current_stage") != stage:
+                action_history = []
 
             if obs.get("done", False):
                 final_score = reward.get("score", 0.0)
