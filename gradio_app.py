@@ -952,16 +952,22 @@ Run each agent independently on a fresh environment reset.
                 yield emit("╚══════════════════════════════════════════════════════╝\n")
                 try:
                     httpx.post(f"{BASE_URL}/reset", timeout=15)
-                    _t.sleep(0.5)
-                    httpx.post(f"{BASE_URL}/reset", timeout=15)
+                    _t.sleep(0.8)
+                    r2 = httpx.post(f"{BASE_URL}/reset", timeout=15).json()
+                    init_script = r2.get("script_content", "")
+                    yield emit(f"  ✓ Env reset | stage={r2.get('current_stage','?')} | script has age_years={'age_years' in init_script}")
                 except Exception as e:
                     yield emit(f"❌ Reset failed: {e}")
                     return
                 step = 0
                 done = False
+                cur_env_stage = 1
                 for stage in range(1, 5):
                     if done:
                         break
+                    if cur_env_stage != stage:
+                        yield emit(f"  ⚠ Env is on stage {cur_env_stage}, skipping stage {stage} actions")
+                        continue
                     yield emit(f"── Stage {stage} ─────────────────────────────────────────")
                     for action in _BSTAGES[stage]:
                         step += 1
@@ -974,9 +980,14 @@ Run each agent independently on a fresh environment reset.
                             obs = resp.get("observation", {})
                             rwd = resp.get("reward", {})
                             score = float(rwd.get("score", 0.0))
-                            msg = rwd.get("message", "")[:50]
+                            msg = rwd.get("message", "")[:60]
                             done = obs.get("done", False)
-                            lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ score={score:.2f}  {msg}"
+                            cur_env_stage = obs.get("current_stage", cur_env_stage)
+                            dbg = ""
+                            if atype == "edit_script":
+                                sc = obs.get("script_content", "")
+                                dbg = f" [age_years={'age_years' in sc}]"
+                            lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ score={score:.2f}  {msg}{dbg}"
                         except Exception as ex:
                             lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ ❌ {ex}"
                         yield "\n".join(lines)
