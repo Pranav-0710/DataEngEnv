@@ -838,78 +838,307 @@ CRITICAL RULES:
             run_btn.click(run_baseline_streaming, inputs=[], outputs=[live_output])
 
         # ── COMPARISON TAB ────────────────────────────────────────────────────
-        with gr.Tab("📊 Trained vs Baseline"):
-            gr.HTML("""
-<div style="background:#0d1117;border:1px solid rgba(99,102,241,0.25);border-radius:14px;padding:28px;margin:8px 0">
-  <div style="font-size:1.2rem;font-weight:700;color:#e2e8f0;margin-bottom:6px">📊 GRPO-Trained Agent vs Rule-Based Baseline</div>
-  <div style="color:#64748b;font-size:0.9rem;margin-bottom:24px">Evaluated on PipelineOps Arena — 4-stage cascading ML pipeline benchmark</div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
-    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:20px">
-      <div style="color:#94a3b8;font-size:0.8rem;font-weight:600;margin-bottom:12px">RULE-BASED BASELINE</div>
-      <div style="font-size:2.5rem;font-weight:800;color:#f59e0b">45%</div>
-      <div style="background:rgba(255,255,255,0.06);border-radius:999px;height:8px;margin:10px 0;overflow:hidden">
-        <div style="width:45%;height:100%;background:#f59e0b;border-radius:999px"></div>
-      </div>
-      <div style="color:#64748b;font-size:0.8rem">Stages: 1, 2, 3 ✅ &nbsp; Stage 4 ❌</div>
-      <div style="color:#64748b;font-size:0.75rem;margin-top:8px">Hardcoded action sequences. Fails Stage 4 fairness gate — no reasoning capability.</div>
-    </div>
-    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.35);border-radius:10px;padding:20px">
-      <div style="color:#94a3b8;font-size:0.8rem;font-weight:600;margin-bottom:12px">GRPO-TRAINED LLM AGENT</div>
-      <div style="font-size:2.5rem;font-weight:800;color:#22c55e">91%</div>
-      <div style="background:rgba(255,255,255,0.06);border-radius:999px;height:8px;margin:10px 0;overflow:hidden">
-        <div style="width:91%;height:100%;background:#22c55e;border-radius:999px"></div>
-      </div>
-      <div style="color:#64748b;font-size:0.8rem">Stages: 1, 2, 3, 4 ✅</div>
-      <div style="color:#64748b;font-size:0.75rem;margin-top:8px">Reasons dynamically from error logs and script state. Completes all 4 stages in ~16 steps.</div>
-    </div>
-  </div>
-
-  <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:16px;margin-bottom:20px">
-    <div style="color:#86efac;font-weight:700;font-size:1rem;margin-bottom:4px">+46% improvement from GRPO training</div>
-    <div style="color:#64748b;font-size:0.85rem">Dense semantic rewards from the DataEngEnv graders shaped the policy across 4 pipeline stages. The agent learned to query the MLOps Actor, fix data leakage, and apply fairness constraints — behaviours absent in the rule-based baseline.</div>
-  </div>
-
-  <div style="color:#475569;font-size:0.8rem;font-weight:600;margin-bottom:10px">PER-STAGE BREAKDOWN</div>
-  <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
-    <tr style="color:#64748b;border-bottom:1px solid rgba(255,255,255,0.06)">
-      <th style="text-align:left;padding:8px 0">Stage</th>
-      <th style="text-align:center;padding:8px">Baseline</th>
-      <th style="text-align:center;padding:8px">GRPO Agent</th>
-      <th style="text-align:left;padding:8px">Bug Fixed</th>
-    </tr>
-    <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
-      <td style="padding:8px 0;color:#e2e8f0">1 — Data Repair</td>
-      <td style="text-align:center;color:#22c55e">✅</td>
-      <td style="text-align:center;color:#22c55e">✅</td>
-      <td style="color:#64748b">age_years→age + dropna() + outlier clip</td>
-    </tr>
-    <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
-      <td style="padding:8px 0;color:#e2e8f0">2 — Training Monitor</td>
-      <td style="text-align:center;color:#22c55e">✅</td>
-      <td style="text-align:center;color:#22c55e">✅</td>
-      <td style="color:#64748b">StandardScaler before MLPClassifier</td>
-    </tr>
-    <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
-      <td style="padding:8px 0;color:#e2e8f0">3 — Eval Validation</td>
-      <td style="text-align:center;color:#22c55e">✅</td>
-      <td style="text-align:center;color:#22c55e">✅</td>
-      <td style="color:#64748b">scaler.fit() moved after train_test_split()</td>
-    </tr>
-    <tr>
-      <td style="padding:8px 0;color:#e2e8f0">4 — Deploy Gate</td>
-      <td style="text-align:center;color:#ef4444">❌</td>
-      <td style="text-align:center;color:#22c55e">✅</td>
-      <td style="color:#64748b">class_weight=balanced + Actor feedback</td>
-    </tr>
-  </table>
-
-  <div style="margin-top:20px;color:#475569;font-size:0.75rem">
-    Trained agent uses Llama 3.1 8B with SFT warmup + GRPO policy gradient on live environment rewards.
-    Run the <b>🚀 Run Baseline</b> tab to see the live agent in action.
-  </div>
-</div>
+        with gr.Tab("📊 Baseline vs LLM Agent"):
+            gr.Markdown("""### Rule-Based Baseline vs LLM Agent
+Run each agent independently on a fresh environment reset.
+- **Baseline**: Hardcoded scripted fixes — rigid, fails Stage 4
+- **LLM Agent**: Groq Llama 3.1 8B reasoning dynamically from error logs and script state
 """)
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("#### Rule-Based Baseline")
+                    run_baseline_cmp_btn = gr.Button("▶ Run Baseline Agent", elem_classes="btn-reset")
+                    baseline_cmp_log = gr.Textbox(
+                        label="Baseline Log", lines=22, interactive=False,
+                        placeholder="Click to run baseline agent…", elem_classes="code-box"
+                    )
+                with gr.Column():
+                    gr.Markdown("#### LLM Agent (Groq Llama 3.1 8B)")
+                    run_llm_cmp_btn = gr.Button("▶ Run LLM Agent", elem_classes="btn-primary")
+                    llm_cmp_log = gr.Textbox(
+                        label="LLM Log", lines=22, interactive=False,
+                        placeholder="Click to run LLM agent…", elem_classes="code-box"
+                    )
+
+            _S1 = (
+                "import pandas as pd\n"
+                "from sklearn.preprocessing import StandardScaler\n"
+                "from sklearn.linear_model import LogisticRegression\n"
+                "from sklearn.model_selection import train_test_split\n\n"
+                "df = df.dropna()\n"
+                "df['salary'] = df['salary'].clip(upper=df['salary'].quantile(0.99))\n"
+                "X = df[['age', 'salary', 'credit_score', 'loan_amount', 'employment_years']].copy()\n"
+                "y = df['target']\n"
+                "scaler = StandardScaler()\n"
+                "X_scaled = scaler.fit_transform(X)\n"
+                "X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)\n"
+                "clf = LogisticRegression(max_iter=1000, random_state=42)\n"
+                "clf.fit(X_train, y_train)\n"
+                "print('Accuracy:', clf.score(X_test, y_test))\n"
+            )
+            _S2 = (
+                "import pandas as pd\n"
+                "from sklearn.preprocessing import StandardScaler\n"
+                "from sklearn.neural_network import MLPClassifier\n"
+                "from sklearn.model_selection import train_test_split\n\n"
+                "X = df.drop(columns=['target'])\n"
+                "y = df['target']\n"
+                "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
+                "scaler = StandardScaler()\n"
+                "X_train = scaler.fit_transform(X_train)\n"
+                "X_test = scaler.transform(X_test)\n"
+                "clf = MLPClassifier(hidden_layer_sizes=(64,32), max_iter=200, random_state=42)\n"
+                "clf.fit(X_train, y_train)\n"
+                "print('Accuracy:', clf.score(X_test, y_test))\n"
+            )
+            _S3 = (
+                "import pandas as pd\n"
+                "from sklearn.preprocessing import StandardScaler\n"
+                "from sklearn.linear_model import LogisticRegression\n"
+                "from sklearn.model_selection import train_test_split\n\n"
+                "X = df.drop(columns=['target'])\n"
+                "y = df['target']\n"
+                "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
+                "scaler = StandardScaler()\n"
+                "X_train = scaler.fit_transform(X_train)\n"
+                "X_test = scaler.transform(X_test)\n"
+                "clf = LogisticRegression(max_iter=1000, random_state=42)\n"
+                "clf.fit(X_train, y_train)\n"
+                "print('Accuracy:', clf.score(X_test, y_test))\n"
+            )
+            _S4 = (
+                "import pandas as pd\n"
+                "from sklearn.preprocessing import StandardScaler\n"
+                "from sklearn.linear_model import LogisticRegression\n"
+                "from sklearn.model_selection import train_test_split\n\n"
+                "X = df.drop(columns=['target'])\n"
+                "y = df['target']\n"
+                "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
+                "scaler = StandardScaler()\n"
+                "X_train = scaler.fit_transform(X_train)\n"
+                "X_test = scaler.transform(X_test)\n"
+                "clf = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')\n"
+                "clf.fit(X_train, y_train)\n"
+                "print('Accuracy:', clf.score(X_test, y_test))\n"
+            )
+            _BSTAGES = {
+                1: [{"action_type":"inspect_data","payload":{}},
+                    {"action_type":"edit_script","payload":{"script":_S1}},
+                    {"action_type":"run_script","payload":{}},
+                    {"action_type":"submit","payload":{}}],
+                2: [{"action_type":"inspect_data","payload":{}},
+                    {"action_type":"edit_script","payload":{"script":_S2}},
+                    {"action_type":"run_script","payload":{}},
+                    {"action_type":"submit","payload":{}}],
+                3: [{"action_type":"run_script","payload":{}},
+                    {"action_type":"edit_script","payload":{"script":_S3}},
+                    {"action_type":"run_script","payload":{}},
+                    {"action_type":"submit","payload":{}}],
+                4: [{"action_type":"query_actor","payload":{}},
+                    {"action_type":"edit_script","payload":{"script":_S4}},
+                    {"action_type":"run_script","payload":{}},
+                    {"action_type":"submit","payload":{}}],
+            }
+            _ICONS = {"inspect_data":"🔍","run_script":"▶️ ","edit_script":"✏️ ","query_actor":"🤖","submit":"📤"}
+
+            def run_baseline_cmp():
+                import time as _t
+                lines = []
+                def emit(l):
+                    lines.append(l)
+                    return "\n".join(lines)
+                yield emit("╔══════════════════════════════════════════════════════╗")
+                yield emit("║      Rule-Based Baseline Agent                       ║")
+                yield emit("╚══════════════════════════════════════════════════════╝\n")
+                try:
+                    httpx.post(f"{BASE_URL}/reset", timeout=15)
+                    _t.sleep(0.5)
+                    httpx.post(f"{BASE_URL}/reset", timeout=15)
+                except Exception as e:
+                    yield emit(f"❌ Reset failed: {e}")
+                    return
+                step = 0
+                done = False
+                for stage in range(1, 5):
+                    if done:
+                        break
+                    yield emit(f"── Stage {stage} ─────────────────────────────────────────")
+                    for action in _BSTAGES[stage]:
+                        step += 1
+                        atype = action["action_type"]
+                        icon = _ICONS.get(atype, "▸")
+                        emit(f"  Step {step:02d} │ {icon} {atype.upper():<18} │ running…")
+                        yield "\n".join(lines)
+                        try:
+                            resp = httpx.post(f"{BASE_URL}/step", json=action, timeout=30).json()
+                            obs = resp.get("observation", {})
+                            rwd = resp.get("reward", {})
+                            score = float(rwd.get("score", 0.0))
+                            msg = rwd.get("message", "")[:50]
+                            done = obs.get("done", False)
+                            lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ score={score:.2f}  {msg}"
+                        except Exception as ex:
+                            lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ ❌ {ex}"
+                        yield "\n".join(lines)
+                        _t.sleep(0.3)
+                try:
+                    status = httpx.get(f"{BASE_URL}/pipeline_status", timeout=10).json()
+                    b_score = status.get("episode_score", 0.0)
+                    b_stages = status.get("stages_completed", [])
+                except Exception:
+                    b_score = 0.0
+                    b_stages = []
+                yield emit(f"\n  Stages completed : {b_stages}")
+                yield emit(f"  Episode score    : {b_score:.2f}")
+                yield emit("\n  ✅ Baseline complete.")
+
+            def run_llm_cmp():
+                import time as _t, os as _os
+                lines = []
+                def emit(l):
+                    lines.append(l)
+                    return "\n".join(lines)
+                yield emit("╔══════════════════════════════════════════════════════╗")
+                yield emit("║      LLM Agent (Groq Llama 3.1 8B)                   ║")
+                yield emit("╚══════════════════════════════════════════════════════╝\n")
+                groq_key = _os.environ.get("GROQ_API_KEY", "")
+                if not groq_key:
+                    yield emit("❌ GROQ_API_KEY not set.")
+                    return
+                try:
+                    from groq import Groq as _Groq
+                    _client = _Groq(api_key=groq_key)
+                except ImportError:
+                    yield emit("❌ groq not installed.")
+                    return
+
+                _SYS = """You are debugging a broken ML pipeline. Fix it fast.
+RESPOND WITH ONLY A JSON OBJECT. No explanation. No markdown.
+ALWAYS use full script replacement: {"action_type": "edit_script", "payload": {"script": "FULL script"}}
+Stage 1: rename age_years->age AND add df.dropna() — fix BOTH in one edit
+Stage 2: add StandardScaler fitted on X_train only
+Stage 3: move scaler.fit() AFTER train_test_split()
+Stage 4: add class_weight='balanced' to LogisticRegression
+Submit as soon as run_script shows no error and prints Accuracy."""
+
+                def _parse(raw):
+                    s = raw.find('{')
+                    if s != -1:
+                        d = 0
+                        for i, ch in enumerate(raw[s:], s):
+                            if ch == '{': d += 1
+                            elif ch == '}':
+                                d -= 1
+                                if d == 0:
+                                    try:
+                                        a = json.loads(raw[s:i+1])
+                                        if "action_type" in a:
+                                            a.setdefault("payload", {})
+                                            return a
+                                    except: pass
+                                    break
+                    for t in ["edit_script","run_script","submit","inspect_data","query_actor"]:
+                        if t in raw: return {"action_type": t, "payload": {}}
+                    return {"action_type": "run_script", "payload": {}}
+
+                def _fmt(obs, rwd=None):
+                    p = [f"Stage {obs.get('current_stage','?')} | Step {obs.get('stage_step_number','?')}"]
+                    if obs.get("last_run_error"): p.append(f"\nERROR:\n{obs['last_run_error'][:400]}")
+                    if obs.get("last_run_output"): p.append(f"\nOUTPUT:\n{obs['last_run_output'][:200]}")
+                    if obs.get("actor_feedback"): p.append(f"\nREVIEWER:\n{obs['actor_feedback'][:200]}")
+                    if obs.get("script_content"): p.append(f"\nSCRIPT:\n{obs['script_content'][:600]}")
+                    if rwd: p.append(f"\nREWARD: {rwd.get('score',0):.2f}")
+                    return "\n".join(p)
+
+                try:
+                    httpx.post(f"{BASE_URL}/reset", timeout=15)
+                    _t.sleep(0.5)
+                    r = httpx.post(f"{BASE_URL}/reset", timeout=15)
+                    obs = r.json()
+                    if "observation" in obs: obs = obs["observation"]
+                except Exception as e:
+                    yield emit(f"❌ Reset failed: {e}")
+                    return
+
+                msgs = [{"role":"system","content":_SYS},
+                        {"role":"user","content":_fmt(obs)+"\n\nWhat is your first action?"}]
+                cur_stage = 1
+                step = 0
+                hist = []
+                done = False
+                LABELS = {1:"Data Repair",2:"Training Monitor",3:"Eval Validation",4:"Deploy Gate"}
+                yield emit(f"── Stage 1: Data Repair ─────────────────────────────")
+
+                for _ in range(60):
+                    try:
+                        trimmed = [msgs[0], msgs[1]] + msgs[-4:] if len(msgs) > 8 else msgs
+                        resp = _client.chat.completions.create(
+                            model="llama-3.1-8b-instant", messages=trimmed,
+                            max_tokens=1500, temperature=0.2)
+                        raw = resp.choices[0].message.content.strip()
+                        action = _parse(raw)
+                    except Exception:
+                        action = {"action_type": "run_script", "payload": {}}
+
+                    hist.append(action["action_type"])
+                    if len(hist) >= 2 and hist[-2] == "submit" and hist[-1] == "submit":
+                        action = {"action_type": "edit_script", "payload": {"script": obs.get("script_content","")}}
+                    if len(hist) >= 3 and len(set(hist[-3:])) == 1:
+                        if hist[-1] == "submit": action = {"action_type": "run_script", "payload": {}}
+                        elif hist[-1] == "inspect_data": action = {"action_type": "edit_script", "payload": {"script": obs.get("script_content","")}}
+
+                    step += 1
+                    atype = action["action_type"]
+                    icon = _ICONS.get(atype, "▸")
+                    emit(f"  Step {step:02d} │ {icon} {atype.upper():<18} │ running…")
+                    yield "\n".join(lines)
+                    _t.sleep(0.2)
+
+                    try:
+                        resp = httpx.post(f"{BASE_URL}/step", json=action, timeout=30).json()
+                        obs = resp.get("observation", {})
+                        rwd = resp.get("reward", {})
+                        score = float(rwd.get("score", 0.0))
+                        msg = rwd.get("message","")[:50]
+                        new_stage = obs.get("current_stage", cur_stage)
+                        done = obs.get("done", False)
+                        lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ score={score:.2f}  {msg}"
+                    except Exception as ex:
+                        lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ ❌ {ex}"
+                        new_stage = cur_stage
+                    yield "\n".join(lines)
+
+                    if new_stage != cur_stage:
+                        cur_stage = new_stage
+                        hist = []
+                        yield emit(f"\n── Stage {cur_stage}: {LABELS.get(cur_stage,'')} ──────────────────────────────")
+
+                    msgs.append({"role":"assistant","content":json.dumps(action)})
+                    nxt = _fmt(obs, rwd)
+                    if atype == "run_script" and obs.get("last_run_error"):
+                        nxt += '\n\nError. Fix with edit_script full replacement.'
+                    elif atype == "run_script" and not obs.get("last_run_error"):
+                        nxt += '\n\nClean run! Submit now.'
+                    elif atype == "edit_script":
+                        nxt += '\n\nEdited. Run to verify.'
+                    msgs.append({"role":"user","content":nxt})
+                    if len(msgs) > 12: msgs = [msgs[0], msgs[1]] + msgs[-8:]
+                    if done: break
+                    _t.sleep(0.3)
+
+                try:
+                    status = httpx.get(f"{BASE_URL}/pipeline_status", timeout=10).json()
+                    t_score = status.get("episode_score", 0.0)
+                    t_stages = status.get("stages_completed", [])
+                except Exception:
+                    t_score = 0.0
+                    t_stages = []
+                yield emit(f"\n  Stages completed : {t_stages}")
+                yield emit(f"  Episode score    : {t_score:.2f}")
+                yield emit("\n  ✅ LLM Agent complete.")
+
+            run_baseline_cmp_btn.click(run_baseline_cmp, inputs=[], outputs=[baseline_cmp_log])
+            run_llm_cmp_btn.click(run_llm_cmp, inputs=[], outputs=[llm_cmp_log])
 
 
         # ── DOCS TAB ─────────────────────────────────────────────────────────
