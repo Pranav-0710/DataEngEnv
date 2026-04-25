@@ -1073,6 +1073,7 @@ CRITICAL RULES:
                 cur_stage = 1
                 step = 0
                 hist = []
+                last_was_clean_run = False
                 yield emit(f"── Stage 1: Data Repair ────────────────────────────")
 
                 for _ in range(60):
@@ -1089,17 +1090,16 @@ CRITICAL RULES:
 
                     # ── loop-break heuristics ─────────────────────────────────
                     hist.append(action["action_type"])
-                    # Force submit if last run was clean
-                    if (len(hist) >= 2 and hist[-2] == "run_script"
-                            and action["action_type"] != "submit"
-                            and hasattr(obs, "last_run_error") and not obs.last_run_error
-                            and hasattr(obs, "last_run_output") and obs.last_run_output):
+                    # If the LAST EXECUTED step was run_script and returned clean output,
+                    # force submit regardless of what the LLM says
+                    if last_was_clean_run and action["action_type"] != "submit":
                         action = {"action_type": "submit", "payload": {}}
-                    elif len(hist) >= 3 and len(set(hist[-3:])) == 1:
+                        last_was_clean_run = False  # consumed
+                    elif len(hist) >= 4 and len(set(hist[-4:])) == 1:
                         if hist[-1] == "edit_script":
                             action = {"action_type": "run_script", "payload": {}}
-                        elif hist[-1] == "run_script":
-                            action = {"action_type": "submit", "payload": {}}
+                        elif hist[-1] in ("run_script", "submit"):
+                            action = {"action_type": "edit_script", "payload": {"script": obs.script_content or ""}}
 
                     step += 1
                     atype = action["action_type"]
@@ -1116,6 +1116,12 @@ CRITICAL RULES:
                         msg     = (rwd.message or "")[:60]
                         new_stage = obs.current_stage
                         done    = _env.done
+                        # Track whether this run_script returned clean output
+                        last_was_clean_run = (
+                            atype == "run_script"
+                            and not obs.last_run_error
+                            and bool(obs.last_run_output)
+                        )
                         lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ score={score:.2f}  {msg}"
                     except Exception as ex:
                         lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ ❌ {ex}"
@@ -1123,11 +1129,13 @@ CRITICAL RULES:
                         done = False
                         obs = init_obs
                         rwd = None
+                        last_was_clean_run = False
                     yield "\n".join(lines)
 
                     if new_stage != cur_stage:
                         cur_stage = new_stage
                         hist = []
+                        last_was_clean_run = False
                         yield emit(f"\n── Stage {cur_stage}: {LABELS.get(cur_stage,'')} {'─'*(36-len(LABELS.get(cur_stage,'')))}─")
 
                     # ── build next prompt ─────────────────────────────────────
