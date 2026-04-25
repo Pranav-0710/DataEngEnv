@@ -1,11 +1,6 @@
 {
-  "final_score": 1.0,
-  "total_steps": 18,
-  "stages_completed": [
-    1,
-    2,
-    3,
-    4
-  ],
-  "episode_score": 1.0
+  "final_score": 0.0,
+  "total_steps": 20,
+  "stages_completed": [],
+  "episode_score": 0.0
 }

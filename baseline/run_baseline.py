@@ -33,14 +33,10 @@ RULES:
 - NEVER inspect more than once
 - NEVER run more than twice
 - Submit as soon as output looks correct
-- If you see KeyError 'age_years': STAGE 1 HAS THREE BUGS. You must:
-  1. Rename 'age_years' to 'age'
-  2. Handle NaNs: add df.dropna(inplace=True)
-  3. Handle Outliers: add df['salary'] = df['salary'].clip(upper=df['salary'].quantile(0.99))
-  FIX ALL THREE IN ONE EDIT BEFORE SUBMITTING.
-- If loss is NaN (Stage 2): add StandardScaler before classifier
-- If accuracy suspiciously high (>0.95) (Stage 3): move scaler.fit() to AFTER train_test_split()
-- If fairness issue (Stage 4): add class_weight='balanced' to classifier"""
+- If you see KeyError 'age_years': rename to 'age' and add df.dropna(inplace=True) before feature selection
+- If loss is NaN: add StandardScaler before classifier
+- If accuracy suspiciously high (>0.95): move scaler.fit() to AFTER train_test_split()
+- If fairness issue: add class_weight='balanced' to classifier"""
 
 
 def parse_action(raw_text: str) -> dict:
@@ -140,13 +136,14 @@ def run_episode():
             print(f"  LLM error: {e}")
             action = {"action_type": "run_script", "payload": {}}
 
-        # Anti-loop detection & Override
-        requested_action = action["action_type"]
+        # Anti-loop detection
+        action_history.append(action["action_type"])
 
         # Never submit twice in a row
-        if len(action_history) >= 1 and action_history[-1] == "submit" and requested_action == "submit":
-            action = {"action_type": "run_script", "payload": {}}
-            requested_action = "run_script"
+        if len(action_history) >= 2 and action_history[-2] == "submit" and action["action_type"] == "submit":
+            action = {"action_type": "edit_script", "payload": {
+                "script": obs.get("script_content", "") if isinstance(obs, dict) else ""
+            }}
 
         # Detect alternating edit/run pattern — force submit
         if len(action_history) >= 4:
@@ -156,7 +153,6 @@ def run_episode():
                 ["run_script", "edit_script", "run_script", "edit_script"],
             ]:
                 action = {"action_type": "submit", "payload": {}}
-                requested_action = "submit"
 
         # Same action 3+ times in a row
         if len(action_history) >= 3 and len(set(action_history[-3:])) == 1:
@@ -164,16 +160,10 @@ def run_episode():
                 action = {"action_type": "edit_script", "payload": {
                     "script": obs.get("script_content", "") if isinstance(obs, dict) else ""
                 }}
-                requested_action = "edit_script"
             elif action_history[-1] == "submit":
                 action = {"action_type": "run_script", "payload": {}}
-                requested_action = "run_script"
             else:
                 action = {"action_type": "submit", "payload": {}}
-                requested_action = "submit"
-
-        # Record the FINAL action taken in history
-        action_history.append(requested_action)
 
         # Take the action
         try:
