@@ -1101,6 +1101,44 @@ CRITICAL RULES:
                         parts.append(f"\nREWARD: {reward.get('score',0):.2f} | {reward.get('message','')}")
                     return "\n".join(parts)
 
+                # Use fine-tuned model via HF Inference API if token available,
+                # otherwise fall back to Groq
+                hf_token = _os.environ.get("HF_TOKEN", "")
+                FINETUNED_MODEL = "CoBeDigger/pipelineops-arena-llama3-grpo"
+                use_finetuned = bool(hf_token)
+
+                if use_finetuned:
+                    t_emit("  Using GRPO fine-tuned model (CoBeDigger/pipelineops-arena-llama3-grpo)")
+                else:
+                    t_emit("  HF_TOKEN not set — falling back to Groq llama-3.1-8b-instant")
+                yield "\n".join(baseline_lines), "\n".join(trained_lines), ""
+
+                def call_trained_model(messages):
+                    if use_finetuned:
+                        # HF Inference API — serverless, uses our LoRA adapter
+                        import httpx as _hx
+                        payload = {
+                            "model": FINETUNED_MODEL,
+                            "messages": messages,
+                            "max_tokens": 1500,
+                            "temperature": 0.2,
+                        }
+                        resp = _hx.post(
+                            "https://api-inference.huggingface.co/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {hf_token}"},
+                            json=payload,
+                            timeout=60,
+                        )
+                        return resp.json()["choices"][0]["message"]["content"].strip()
+                    else:
+                        response = client.chat.completions.create(
+                            model="llama-3.1-8b-instant",
+                            messages=messages,
+                            max_tokens=1500,
+                            temperature=0.2,
+                        )
+                        return response.choices[0].message.content.strip()
+
                 try:
                     r = httpx.post(f"{BASE_URL}/reset", timeout=15)
                     obs = r.json()
@@ -1124,13 +1162,7 @@ CRITICAL RULES:
                     for _ in range(60):
                         try:
                             trimmed = [messages[0], messages[1]] + messages[-4:] if len(messages) > 8 else messages
-                            response = client.chat.completions.create(
-                                model="llama-3.1-8b-instant",
-                                messages=trimmed,
-                                max_tokens=1500,
-                                temperature=0.2,
-                            )
-                            raw = response.choices[0].message.content.strip()
+                            raw = call_trained_model(trimmed)
                             action = parse_action(raw)
                         except Exception as e:
                             action = {"action_type": "run_script", "payload": {}}
