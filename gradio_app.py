@@ -1051,24 +1051,34 @@ CRITICAL RULES:
 
                 def _obs_to_prompt(obs):
                     parts = [f"Stage {obs.current_stage} | step {obs.stage_step_number}"]
-                    if obs.last_run_error:
-                        parts.append(f"\nERROR:\n{obs.last_run_error[:500]}")
-                    if obs.last_run_output:
-                        parts.append(f"\nOUTPUT:\n{obs.last_run_output[:300]}")
-                    if obs.actor_feedback:
-                        parts.append(f"\nREVIEWER FEEDBACK:\n{obs.actor_feedback[:300]}")
                     if obs.script_content:
-                        parts.append(f"\nCURRENT SCRIPT:\n{obs.script_content[:800]}")
+                        parts.append(f"\nCURRENT SCRIPT:\n{obs.script_content[:1000]}")
+                    if obs.last_run_error:
+                        parts.append(f"\nRUN ERROR:\n{obs.last_run_error[:500]}")
+                    if obs.last_run_output:
+                        parts.append(f"\nRUN OUTPUT:\n{obs.last_run_output[:300]}")
+                    if obs.actor_feedback:
+                        parts.append(f"\nREVIEWER:\n{obs.actor_feedback[:300]}")
                     return "\n".join(parts)
 
                 _env = DataEngEnvironment()
                 init_obs = _env.reset()
                 yield emit("  ✓ Private env initialised — Stage 1\n")
 
+                # Build the initial user message with full broken script visible
+                _init_prompt = _obs_to_prompt(init_obs)
+                # Hint: show exactly what needs to change so LLM doesn't hallucinate
+                _init_prompt += (
+                    "\n\nThe script above has TWO bugs:\n"
+                    "1. Line uses 'age_years' but the column is named 'age' — fix the column name\n"
+                    "2. No missing-value handling — add df.dropna() before feature selection\n"
+                    "Write a FULL replacement script fixing BOTH bugs, then call run_script."
+                )
+
                 LABELS = {1:"Data Repair",2:"Training Monitor",3:"Eval Validation",4:"Deploy Gate"}
                 msgs = [
                     {"role": "system",  "content": _SYS},
-                    {"role": "user",    "content": _obs_to_prompt(init_obs) + "\n\nWhat is your first action?"},
+                    {"role": "user",    "content": _init_prompt},
                 ]
                 cur_stage = 1
                 step = 0
@@ -1142,13 +1152,15 @@ CRITICAL RULES:
                     msgs.append({"role": "assistant", "content": json.dumps(action)})
                     feedback = _obs_to_prompt(obs)
                     if atype == "run_script" and obs.last_run_error:
-                        feedback += "\n\nScript errored. Use edit_script with a FULL replacement to fix all bugs."
+                        feedback += "\n\nScript errored (see RUN ERROR above). Use edit_script with a FULL script replacement — include ALL imports and fix EVERY bug shown in the error."
                     elif atype == "run_script" and not obs.last_run_error:
-                        feedback += "\n\nClean run — Accuracy printed. Call submit now."
+                        feedback += "\n\nClean run — script printed output with no error. Call submit NOW."
                     elif atype == "edit_script":
-                        feedback += "\n\nScript replaced. Now call run_script to verify."
+                        feedback += "\n\nScript replaced. Call run_script to verify the fix."
                     elif atype == "query_actor":
-                        feedback += "\n\nReviewer replied above. Now edit_script to apply the fix, then run_script."
+                        feedback += "\n\nReviewer responded above. Use edit_script with full script to apply the fix, then run_script."
+                    elif atype == "submit":
+                        feedback += "\n\nStage not yet passing. Review the current script and error carefully, then edit_script to fix remaining bugs."
                     msgs.append({"role": "user", "content": feedback})
                     if len(msgs) > 16:
                         msgs = [msgs[0]] + msgs[1:3] + msgs[-10:]
