@@ -1,20 +1,21 @@
 name: DataEngEnv
-version: "1.0.0"
-description: "ML Data Pipeline Debugger — AI agent fixes broken ML pipelines before production"
-tags: [openenv, data-engineering, machine-learning, debugging, real-world]
+version: "2.0.0"
+description: "PipelineOps Arena — 4-stage cascading ML pipeline debugger with fairness gate"
+tags: [openenv, data-engineering, machine-learning, debugging, reinforcement-learning, fairness]
 tasks:
-  - {id: 1, name: column_rename_bug, difficulty: easy}
-  - {id: 2, name: dirty_data, difficulty: medium}
-  - {id: 3, name: data_leakage, difficulty: hard}
+  - {id: 1, name: data_repair, difficulty: easy, description: "Fix column rename bug + NaN handling"}
+  - {id: 2, name: training_monitor, difficulty: medium, description: "Add StandardScaler for MLP convergence"}
+  - {id: 3, name: eval_validation, difficulty: hard, description: "Fix data leakage — scaler after split"}
+  - {id: 4, name: deploy_gate, difficulty: hard, description: "Fix model fairness with class_weight balanced"}
 endpoints:
   reset: POST /reset
   step: POST /step
   state: GET /state
   tasks: GET /tasks
   grader: POST /grader
-  baseline: GET /baseline
+  pipeline_status: GET /pipeline_status
 observation_space:
-  task_id: int
+  current_stage: int
   step_number: int
   script_content: str
   last_run_output: str
@@ -27,6 +28,9 @@ action_space:
   - {type: check_schema, payload: {}}
   - {type: run_script, payload: {}}
   - {type: edit_script, payload: {old: str, new: str}}
+  - {type: query_actor, payload: {}}
   - {type: submit, payload: {}}
 reward_range: [0.0, 1.0]
 max_steps: 20
+cascade: true
+loop_on_failure: true
