@@ -915,15 +915,18 @@ Each agent runs on its **own private environment** — fully isolated, no shared
                 "from sklearn.preprocessing import StandardScaler\n"
                 "from sklearn.linear_model import LogisticRegression\n"
                 "from sklearn.model_selection import train_test_split\n\n"
-                "X = df.drop(columns=['target'])\n"
+                "features = ['age', 'salary', 'credit_score', 'loan_amount', 'employment_years']\n"
+                "X = df[features].copy()\n"
                 "y = df['target']\n"
-                "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
+                "X_train, X_test, y_train, y_test = train_test_split(\n"
+                "    X, y, test_size=0.25, random_state=42, stratify=y\n"
+                ")\n"
                 "scaler = StandardScaler()\n"
-                "X_train = scaler.fit_transform(X_train)\n"
-                "X_test  = scaler.transform(X_test)\n"
+                "X_train_scaled = scaler.fit_transform(X_train)\n"
+                "X_test_scaled  = scaler.transform(X_test)\n"
                 "clf = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')\n"
-                "clf.fit(X_train, y_train)\n"
-                "print('Accuracy:', clf.score(X_test, y_test))\n"
+                "clf.fit(X_train_scaled, y_train)\n"
+                "print('Accuracy:', clf.score(X_test_scaled, y_test))\n"
             )
             _BSTAGES = {
                 1: [("inspect_data", {}), ("edit_script", {"script": _S1}), ("run_script", {}), ("submit", {})],
@@ -1005,7 +1008,7 @@ Each agent runs on its **own private environment** — fully isolated, no shared
                     yield emit("❌ groq package not installed.")
                     return
 
-                _SYS = """You are an expert ML engineer debugging a broken pipeline. Respond ONLY with a single JSON object.
+                _SYS = """You are an expert ML engineer debugging a broken pipeline. Respond ONLY with a single JSON object — no markdown, no explanation.
 
 Available actions:
   {"action_type": "inspect_data", "payload": {}}
@@ -1014,14 +1017,15 @@ Available actions:
   {"action_type": "query_actor",  "payload": {}}
   {"action_type": "submit",       "payload": {}}
 
-Rules:
-- edit_script must replace the ENTIRE script, not a patch
-- After edit_script always run_script to verify
-- submit only after run_script shows Accuracy printed with no error
-- Stage 1 bug: column named 'age_years' should be 'age', also add df.dropna()
-- Stage 2 bug: StandardScaler must be fit on X_train only (after split)
-- Stage 3 bug: scaler.fit must happen after train_test_split
-- Stage 4 bug: LogisticRegression needs class_weight='balanced'"""
+CRITICAL RULES:
+- edit_script MUST replace the ENTIRE script
+- After every edit_script, call run_script ONCE to verify
+- If run_script output contains "Accuracy:" with NO error → call submit IMMEDIATELY
+- DO NOT edit again after a clean run — just submit
+- Stage 1: rename 'age_years' → 'age' AND add df.dropna() before any processing
+- Stage 2: StandardScaler must be fit ONLY on X_train (after train_test_split)
+- Stage 3: call scaler.fit_transform AFTER train_test_split
+- Stage 4: add class_weight='balanced' to LogisticRegression; use stratify=y in split"""
 
                 def _parse(raw):
                     s = raw.find('{')
@@ -1085,7 +1089,13 @@ Rules:
 
                     # ── loop-break heuristics ─────────────────────────────────
                     hist.append(action["action_type"])
-                    if len(hist) >= 4 and len(set(hist[-4:])) == 1:
+                    # Force submit if last run was clean
+                    if (len(hist) >= 2 and hist[-2] == "run_script"
+                            and action["action_type"] != "submit"
+                            and hasattr(obs, "last_run_error") and not obs.last_run_error
+                            and hasattr(obs, "last_run_output") and obs.last_run_output):
+                        action = {"action_type": "submit", "payload": {}}
+                    elif len(hist) >= 3 and len(set(hist[-3:])) == 1:
                         if hist[-1] == "edit_script":
                             action = {"action_type": "run_script", "payload": {}}
                         elif hist[-1] == "run_script":
