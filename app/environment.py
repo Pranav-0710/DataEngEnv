@@ -308,7 +308,7 @@ class DataEngEnvironment:
             self.last_run_error = f"Action Handler Error: {exc}"
             message = self.last_run_error
 
-        if self.step_number >= 60 or self.stage_step_number >= 15:
+        if self.step_number >= 60 or self.stage_step_number >= 20:
             self.done = True
             message = f"{message} Stage or episode step limit reached."
 
@@ -325,6 +325,7 @@ class DataEngEnvironment:
             },
             grader_score=score,
             step_number=self.step_number,
+            current_script=self.current_script,
         )
 
         # For submit, override score but keep partial breakdown

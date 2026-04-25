@@ -6,12 +6,10 @@ from app.models import Reward
 
 
 class RewardEngine:
-    """Dense partial reward shaping aligned to the 4-stage cascade.
+    """Dense semantic reward shaping for 4-stage cascade.
 
-    Stage 1 — Data Repair:    rename age_years→age, dropna
-    Stage 2 — Training Monitor: add StandardScaler before MLPClassifier
-    Stage 3 — Eval Validation:  move scaler.fit after train_test_split
-    Stage 4 — Deploy Gate:      add class_weight='balanced'
+    Key principle: reward is based on RESULTING SCRIPT STATE,
+    not exact payload text. This lets any valid fix earn reward.
     """
 
     def __init__(self) -> None:
@@ -21,7 +19,7 @@ class RewardEngine:
         if task_id not in self._state:
             self._state[task_id] = {
                 "awarded": {},
-                "has_edited": False,
+                "action_history": [],
             }
         return self._state[task_id]
 
@@ -31,20 +29,16 @@ class RewardEngine:
         st["awarded"][key] = float(value)
         return True
 
-    def _payload_text(self, payload: dict) -> str:
-        parts = []
-        for v in (payload or {}).values():
-            if isinstance(v, str):
-                parts.append(v)
-        return "\n".join(parts).lower()
-
-    def _no_error(self, observation: dict) -> bool:
-        err = (observation or {}).get("last_run_error")
-        return err is None or str(err).strip() == ""
-
     def _compute_score(self, st: Dict[str, Any]) -> float:
         total = float(sum(st["awarded"].values()))
-        return max(0.01, min(0.99, total))
+        return max(0.0, min(0.99, total))
+
+    def _repeat_penalty(self, st: Dict[str, Any], action_type: str) -> float:
+        """Small penalty for repeating the same action consecutively."""
+        history = st["action_history"]
+        if len(history) >= 2 and history[-1] == action_type and history[-2] == action_type:
+            return -0.03
+        return 0.0
 
     def compute_reward(
         self,
@@ -54,118 +48,128 @@ class RewardEngine:
         observation: dict,
         grader_score: float,
         step_number: int,
+        current_script: str = "",
     ) -> Reward:
         st = self._get_task_state(task_id)
         msg_parts = []
         action_type = (action_type or "").strip()
-        payload_text = self._payload_text(action_payload)
 
-        # ── query_actor — applies to ALL stages ──────────────────────
+        # Track action history for repeat penalty
+        st["action_history"].append(action_type)
+
+        # Check for repeat penalty
+        penalty = self._repeat_penalty(st, action_type)
+        if penalty < 0:
+            self._add_partial(st, f"repeat_penalty_{step_number}", penalty)
+            msg_parts.append(f"{penalty:.2f} repeated action")
+
+        script_lower = current_script.lower()
+
+        # ── query_actor — all stages ─────────────────────────────
         if action_type == "query_actor":
             if self._add_partial(st, "actor_query", 0.1):
                 msg_parts.append("+0.1 actor consulted")
             return Reward(
                 score=self._compute_score(st),
                 partial_rewards=dict(st["awarded"]),
-                message=", ".join(msg_parts) if msg_parts else "actor already consulted",
+                message=", ".join(msg_parts) or "actor already consulted",
                 is_terminal=False,
             )
 
-        # ── STAGE 1 — Data Repair ────────────────────────────────────
+        # ── STAGE 1 — Data Repair ────────────────────────────────
         if task_id == 1:
             if action_type in {"inspect_data", "check_schema"}:
                 if self._add_partial(st, "s1_inspect", 0.1):
                     msg_parts.append("S1: +0.1 inspect/schema")
 
+            # Semantic check on RESULTING SCRIPT after edit
             if action_type == "edit_script":
-                st["has_edited"] = True
-                # Check for column rename fix (age_years → age)
-                if "age" in payload_text and "age_years" not in payload_text:
-                    if self._add_partial(st, "s1_rename_fix", 0.2):
-                        msg_parts.append("S1: +0.2 column rename fix")
-                # Check for NaN handling
-                if "dropna" in payload_text or "fillna" in payload_text:
-                    if self._add_partial(st, "s1_nan_fix", 0.1):
-                        msg_parts.append("S1: +0.1 NaN handling added")
+                # Column fix: age_years no longer in script
+                if "age_years" not in script_lower and "age" in script_lower:
+                    if self._add_partial(st, "s1_column_fix", 0.2):
+                        msg_parts.append("S1: +0.2 column bug fixed")
+                # NaN handling present in script
+                if any(kw in script_lower for kw in ["dropna", "fillna", "simpleimputer", "isna", "isnull"]):
+                    if self._add_partial(st, "s1_nan_fix", 0.15):
+                        msg_parts.append("S1: +0.15 NaN handling added")
+                # Outlier handling present in script
+                if any(kw in script_lower for kw in ["clip", "quantile", "robustscaler", "winsor"]):
+                    if self._add_partial(st, "s1_outlier_fix", 0.15):
+                        msg_parts.append("S1: +0.15 outlier handling added")
 
-            if action_type == "run_script" and self._no_error(observation):
+            # Clean run
+            no_error = observation.get("last_run_error") is None or str(observation.get("last_run_error", "")).strip() == ""
+            if action_type == "run_script" and no_error:
                 if self._add_partial(st, "s1_clean_run", 0.2):
                     msg_parts.append("S1: +0.2 clean run")
 
-        # ── STAGE 2 — Training Monitor (StandardScaler) ─────────────
+        # ── STAGE 2 — Training Monitor (StandardScaler) ─────────
         elif task_id == 2:
-            if action_type == "inspect_data":
+            if action_type in {"inspect_data", "check_schema"}:
                 if self._add_partial(st, "s2_inspect", 0.1):
-                    msg_parts.append("S2: +0.1 data inspected")
+                    msg_parts.append("S2: +0.1 inspected")
 
             if action_type == "run_script":
-                # Running reveals NaN loss / divergence
                 if self._add_partial(st, "s2_run_diagnose", 0.1):
                     msg_parts.append("S2: +0.1 divergence observed")
 
+            # Semantic: does script now contain a scaler?
             if action_type == "edit_script":
-                st["has_edited"] = True
-                # Check for StandardScaler addition
-                if "standardscaler" in payload_text or "standard_scaler" in payload_text:
+                if any(kw in script_lower for kw in ["standardscaler", "minmaxscaler", "robustscaler", "normalize"]):
                     if self._add_partial(st, "s2_scaler_fix", 0.3):
-                        msg_parts.append("S2: +0.3 StandardScaler added")
-                # Also accept MinMaxScaler or normalize
-                elif "minmaxscaler" in payload_text or "normalize" in payload_text:
-                    if self._add_partial(st, "s2_scaler_fix", 0.2):
-                        msg_parts.append("S2: +0.2 alternative scaler added")
+                        msg_parts.append("S2: +0.3 scaler added")
 
-            if action_type == "run_script" and st.get("has_edited") and self._no_error(observation):
+            # Clean run after edit
+            no_error = observation.get("last_run_error") is None or str(observation.get("last_run_error", "")).strip() == ""
+            if action_type == "run_script" and "s2_scaler_fix" in st["awarded"] and no_error:
                 if self._add_partial(st, "s2_clean_run", 0.2):
                     msg_parts.append("S2: +0.2 clean run after fix")
 
-        # ── STAGE 3 — Eval Validation (Data Leakage) ────────────────
+        # ── STAGE 3 — Eval Validation (Data Leakage) ────────────
         elif task_id == 3:
-            if action_type == "inspect_data":
+            if action_type in {"inspect_data", "check_schema"}:
                 if self._add_partial(st, "s3_inspect", 0.1):
-                    msg_parts.append("S3: +0.1 data inspected")
+                    msg_parts.append("S3: +0.1 inspected")
 
             if action_type == "run_script":
-                # Running reveals suspicious 98% accuracy
                 if self._add_partial(st, "s3_run_suspicious", 0.1):
                     msg_parts.append("S3: +0.1 suspicious accuracy observed")
 
+            # Semantic: is fit/fit_transform now AFTER train_test_split?
             if action_type == "edit_script":
-                st["has_edited"] = True
-                txt = payload_text
-                # Detect: train_test_split appears before scaler.fit
-                idx_split = txt.find("train_test_split")
-                idx_fit = min(
-                    [i for i in [txt.find("scaler.fit("), txt.find("fit_transform(")] if i != -1]
-                    or [-1]
-                )
+                idx_split = script_lower.find("train_test_split")
+                fit_positions = [script_lower.find("scaler.fit("), script_lower.find("fit_transform(")]
+                fit_positions = [p for p in fit_positions if p != -1]
+                idx_fit = min(fit_positions) if fit_positions else -1
+
                 if idx_split != -1 and idx_fit != -1 and idx_split < idx_fit:
                     if self._add_partial(st, "s3_leakage_fix", 0.3):
-                        msg_parts.append("S3: +0.3 fit moved after split")
-                elif idx_split != -1 or idx_fit != -1:
-                    if self._add_partial(st, "s3_partial_edit", 0.1):
-                        msg_parts.append("S3: +0.1 relevant edit attempt")
+                        msg_parts.append("S3: +0.3 leakage fixed (fit after split)")
+                elif idx_split != -1:
+                    if self._add_partial(st, "s3_partial_edit", 0.05):
+                        msg_parts.append("S3: +0.05 relevant edit attempt")
 
-            if action_type == "run_script" and st.get("has_edited") and self._no_error(observation):
+            no_error = observation.get("last_run_error") is None or str(observation.get("last_run_error", "")).strip() == ""
+            if action_type == "run_script" and "s3_leakage_fix" in st["awarded"] and no_error:
                 if self._add_partial(st, "s3_clean_run", 0.2):
                     msg_parts.append("S3: +0.2 clean run after fix")
 
-            if action_type == "submit" and not st.get("has_edited"):
-                self._add_partial(st, "s3_submit_no_edit", -0.2)
-                msg_parts.append("S3: -0.2 submitted without editing")
+            if action_type == "submit" and "s3_leakage_fix" not in st["awarded"]:
+                self._add_partial(st, "s3_no_edit_penalty", -0.2)
+                msg_parts.append("S3: -0.2 submitted without fixing leakage")
 
-        # ── STAGE 4 — Deploy Gate (Fairness) ─────────────────────────
+        # ── STAGE 4 — Deploy Gate (Fairness) ─────────────────────
         elif task_id == 4:
             if action_type == "inspect_data":
                 if self._add_partial(st, "s4_inspect", 0.1):
-                    msg_parts.append("S4: +0.1 data inspected")
+                    msg_parts.append("S4: +0.1 inspected")
 
+            # Semantic: does script now contain class_weight?
             if action_type == "edit_script":
-                st["has_edited"] = True
-                payload_str = str(action_payload)
-                if "class_weight" in payload_str:
+                if "class_weight" in script_lower:
                     if self._add_partial(st, "s4_fairness_fix", 0.3):
-                        msg_parts.append("S4: +0.3 class_weight balanced added")
-                elif "stratify" in payload_str:
+                        msg_parts.append("S4: +0.3 fairness fix applied")
+                elif "stratify" in script_lower:
                     if self._add_partial(st, "s4_stratify", 0.1):
                         msg_parts.append("S4: +0.1 stratified sampling")
                 else:
@@ -176,21 +180,16 @@ class RewardEngine:
                 if self._add_partial(st, "s4_run", 0.1):
                     msg_parts.append("S4: +0.1 script executed")
 
-        # ── Terminal / Score ──────────────────────────────────────────
+        # ── Score ─────────────────────────────────────────────────
         is_terminal = action_type == "submit"
-        if is_terminal:
-            total_score = float(grader_score)
-        else:
-            total_score = self._compute_score(st)
-
+        total_score = float(grader_score) if is_terminal else self._compute_score(st)
         total_score = max(0.0, min(1.0, total_score))
 
         message = ", ".join(msg_parts) if msg_parts else "no partial reward"
-        cumulative_partials = {k: float(v) for k, v in st["awarded"].items()}
 
         return Reward(
             score=float(total_score),
-            partial_rewards=cumulative_partials,
+            partial_rewards=dict(st["awarded"]),
             message=message,
             is_terminal=is_terminal,
         )

@@ -10,32 +10,33 @@ import os, time, json, re, requests
 BASE_URL = os.environ.get("DATAENGENV_URL", "http://localhost:8000")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
-SYSTEM_PROMPT = """You are a senior Data Engineer. A broken ML pipeline must be fixed.
-
-You will receive the script, error logs, and data info. You must fix the bug.
+SYSTEM_PROMPT = """You are debugging a broken ML pipeline. Fix it fast.
 
 RESPOND WITH ONLY A JSON OBJECT. No explanation. No markdown.
 
 Actions:
-{"action_type": "inspect_data", "payload": {}}
-{"action_type": "run_script", "payload": {}}
-{"action_type": "edit_script", "payload": {"old": "exact text in script", "new": "replacement"}}
-{"action_type": "query_actor", "payload": {}}
-{"action_type": "submit", "payload": {}}
+1. {"action_type": "inspect_data", "payload": {}}
+2. {"action_type": "run_script", "payload": {}}
+3. {"action_type": "edit_script", "payload": {"old": "exact line from script", "new": "replacement"}}
+4. {"action_type": "edit_script", "payload": {"script": "FULL corrected script here"}}
+5. {"action_type": "query_actor", "payload": {}}
+6. {"action_type": "submit", "payload": {}}
 
-CRITICAL RULES:
-- Use inspect_data ONLY ONCE per stage, then move on
-- After inspecting, use edit_script to fix the bug
-- The "old" field must contain text that EXACTLY exists in the script
-- After editing, use run_script to verify
-- After a clean run, use submit
-- NEVER repeat the same action twice in a row
+STRATEGY (follow this exact order):
+1. Inspect data OR run script ONCE to see the error
+2. Use edit_script to fix the bug — prefer option 4 (full script) if unsure about exact text match
+3. Run script ONCE to verify fix
+4. Submit immediately if no error
 
-Common fixes:
-- KeyError 'age_years': the column was renamed to 'age'. Replace 'age_years' with 'age'. Also add df.dropna(inplace=True)
-- Training diverges / loss NaN: features are unscaled. Add StandardScaler before the classifier
-- Suspiciously high accuracy (0.98+): data leakage. Move scaler.fit() to AFTER train_test_split()
-- Fairness rejection: add class_weight='balanced' to the classifier"""
+RULES:
+- Maximum 5 actions per stage: inspect, edit, run, submit
+- NEVER inspect more than once
+- NEVER run more than twice
+- Submit as soon as output looks correct
+- If you see KeyError 'age_years': rename to 'age' and add df.dropna(inplace=True) before feature selection
+- If loss is NaN: add StandardScaler before classifier
+- If accuracy suspiciously high (>0.95): move scaler.fit() to AFTER train_test_split()
+- If fairness issue: add class_weight='balanced' to classifier"""
 
 
 def parse_action(raw_text: str) -> dict:
