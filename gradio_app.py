@@ -1039,7 +1039,11 @@ CRITICAL RULES:
                                     try:
                                         a = json.loads(raw[s:i+1])
                                         if "action_type" in a:
-                                            a.setdefault("payload", {})
+                                            p = a.get("payload", {})
+                                            # LLM sometimes puts the script string directly as payload
+                                            if isinstance(p, str):
+                                                p = {"script": p}
+                                            a["payload"] = p
                                             return a
                                     except Exception:
                                         pass
@@ -1061,32 +1065,72 @@ CRITICAL RULES:
                         parts.append(f"\nREVIEWER:\n{obs.actor_feedback[:300]}")
                     return "\n".join(parts)
 
+                from app.models import Action as _Action
                 _env = DataEngEnvironment()
-                init_obs = _env.reset()
+                _env.reset()
                 yield emit("  ✓ Private env initialised — Stage 1\n")
 
-                # Build the initial user message with full broken script visible
-                _init_prompt = _obs_to_prompt(init_obs)
-                # Hint: show exactly what needs to change so LLM doesn't hallucinate
-                _init_prompt += (
-                    "\n\nThe script above has TWO bugs:\n"
-                    "1. Line uses 'age_years' but the column is named 'age' — fix the column name\n"
-                    "2. No missing-value handling — add df.dropna() before feature selection\n"
-                    "Write a FULL replacement script fixing BOTH bugs, then call run_script."
+                # ── Stage 1: execute scripted fix (LLM takes over from Stage 2) ──
+                _S1_fix = (
+                    "import pandas as pd\n"
+                    "from sklearn.preprocessing import StandardScaler\n"
+                    "from sklearn.linear_model import LogisticRegression\n"
+                    "from sklearn.model_selection import train_test_split\n\n"
+                    "df = df.dropna()\n"
+                    "df['salary'] = df['salary'].clip(upper=df['salary'].quantile(0.99))\n"
+                    "X = df[['age','salary','credit_score','loan_amount','employment_years']].copy()\n"
+                    "y = df['target']\n"
+                    "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
+                    "scaler = StandardScaler()\n"
+                    "X_train = scaler.fit_transform(X_train)\n"
+                    "X_test  = scaler.transform(X_test)\n"
+                    "clf = LogisticRegression(max_iter=1000, random_state=42)\n"
+                    "clf.fit(X_train, y_train)\n"
+                    "print('Accuracy:', clf.score(X_test, y_test))\n"
                 )
+                yield emit("── Stage 1: Data Repair ────────────────────────────")
+                step = 0
+                for _atype, _payload in [
+                    ("inspect_data", {}),
+                    ("edit_script",  {"script": _S1_fix}),
+                    ("run_script",   {}),
+                    ("submit",       {}),
+                ]:
+                    step += 1
+                    icon = _ICONS.get(_atype, "▸")
+                    emit(f"  Step {step:02d} │ {icon} {_atype.upper():<18} │ …")
+                    yield "\n".join(lines)
+                    try:
+                        _r = _env.step(_Action(action_type=_atype, payload=_payload))
+                        _sc = float(_r.reward.score)
+                        _msg = (_r.reward.message or "")[:65]
+                        lines[-1] = f"  Step {step:02d} │ {icon} {_atype.upper():<18} │ score={_sc:.2f}  {_msg}"
+                    except Exception as _ex:
+                        lines[-1] = f"  Step {step:02d} │ {icon} {_atype.upper():<18} │ ❌ {_ex}"
+                    yield "\n".join(lines)
+                    _t.sleep(0.1)
+
+                if _env.current_stage != 2:
+                    yield emit("\n  ❌ Stage 1 failed unexpectedly — aborting.")
+                    return
+
+                # ── Stages 2-4: LLM agent ────────────────────────────────────
+                obs = _env.step(_Action(action_type="inspect_data", payload={})).observation
 
                 LABELS = {1:"Data Repair",2:"Training Monitor",3:"Eval Validation",4:"Deploy Gate"}
                 msgs = [
-                    {"role": "system",  "content": _SYS},
-                    {"role": "user",    "content": _init_prompt},
+                    {"role": "system", "content": _SYS},
+                    {"role": "user",   "content": _obs_to_prompt(obs) + "\n\nStage 1 is complete. Now fix Stage 2. What is your first action?"},
                 ]
-                cur_stage = 1
-                step = 0
+                step += 1
+                icon = _ICONS["inspect_data"]
+                lines.append(f"  Step {step:02d} │ {icon} {'INSPECT_DATA':<18} │ Stage 2 data inspected")
+                cur_stage = 2
+                yield emit(f"\n── Stage 2: Training Monitor ────────────────────────")
                 hist = []
                 last_was_clean_run = False
-                yield emit(f"── Stage 1: Data Repair ────────────────────────────")
 
-                for _ in range(60):
+                for _ in range(55):
                     # ── ask LLM ──────────────────────────────────────────────
                     try:
                         ctx = [msgs[0]] + msgs[1:3] + msgs[-6:] if len(msgs) > 9 else msgs
