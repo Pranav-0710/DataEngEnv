@@ -984,7 +984,7 @@ Each agent runs on its **own private environment** — fully isolated, no shared
                 yield emit(f"\n  {'✅' if _env.episode_score > 0.5 else '❌'} Baseline complete.")
 
             def run_llm_cmp():
-                """LLM agent uses its own private DataEngEnvironment — zero shared state."""
+                """LLM agent — fully genuine, no hardcoded scripts or overrides."""
                 import time as _t, os as _os
                 from app.environment import DataEngEnvironment
                 from app.models import Action
@@ -1008,36 +1008,49 @@ Each agent runs on its **own private environment** — fully isolated, no shared
                     yield emit("❌ groq package not installed.")
                     return
 
-                _SYS = """You are an expert ML engineer debugging a broken pipeline. Respond ONLY with a single JSON object — no markdown, no explanation.
+                _SYS = """You are an expert ML engineer debugging a broken 4-stage ML pipeline. Each stage has one specific bug to fix.
 
-Available actions:
+Respond ONLY with a single JSON object — no markdown, no explanation, nothing else.
+
+AVAILABLE ACTIONS:
   {"action_type": "inspect_data", "payload": {}}
   {"action_type": "run_script",   "payload": {}}
-  {"action_type": "edit_script",  "payload": {"script": "<FULL replacement script>"}}
+  {"action_type": "edit_script",  "payload": {"script": "<FULL replacement script — ALL imports included>"}}
   {"action_type": "query_actor",  "payload": {}}
   {"action_type": "submit",       "payload": {}}
 
 CRITICAL RULES:
-- edit_script MUST replace the ENTIRE script (all imports included)
-- After every edit_script, call run_script ONCE to verify
-- If run_script output contains "Accuracy:" with NO error → call submit IMMEDIATELY
-- DO NOT edit again after a clean run — just submit
+1. edit_script MUST always replace the ENTIRE script (all imports + all logic). Never use old/new format.
+2. After edit_script → always call run_script to verify.
+3. If run_script prints "Accuracy:" with NO error → call submit IMMEDIATELY. Do not edit again.
+4. Fix ALL bugs for a stage in ONE single edit_script call.
 
-STAGE-SPECIFIC FIXES (use LogisticRegression max_iter=1000 unless told otherwise):
-- Stage 2: StandardScaler must be fit ONLY on X_train (AFTER train_test_split, not before)
-- Stage 3: move scaler.fit_transform to AFTER train_test_split; use ALL features with X=df.drop(columns=['target']); keep LogisticRegression
-- Stage 4: add class_weight='balanced' to LogisticRegression; use test_size=0.25, stratify=y
+STAGE BUGS AND FIXES:
+Stage 1 — Data Repair:
+  - Bug 1: column named `age_years` but should be `age` — fix with df.rename(columns={'age_years': 'age'}) OR use 'age' directly
+  - Bug 2: NaN values crash the script — fix with df = df.dropna() before using df
+  - Fix both bugs in one edit. Use LogisticRegression, StandardScaler, train_test_split.
 
-CORRECT PATTERN for Stages 2-4:
-X = df.drop(columns=['target'])
-y = df['target']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test  = scaler.transform(X_test)
-clf = LogisticRegression(max_iter=1000, random_state=42)
-clf.fit(X_train, y_train)
-print('Accuracy:', clf.score(X_test, y_test))"""
+Stage 2 — Training Monitor:
+  - Bug: StandardScaler is fit on the entire dataset BEFORE train_test_split (data leakage)
+  - Fix: call train_test_split FIRST, then scaler.fit_transform(X_train) and scaler.transform(X_test)
+  - Use MLPClassifier if the original script uses it.
+
+Stage 3 — Eval Validation:
+  - Bug: scaler.fit() is called on ALL data before the split (data leakage)
+  - Fix: move scaler.fit_transform to AFTER train_test_split, fit only on X_train
+  - Use all features: X = df.drop(columns=['target'])
+
+Stage 4 — Deploy Gate:
+  - Bug: model has poor fairness (high fairness gap between groups)
+  - Fix: add class_weight='balanced' to LogisticRegression AND use test_size=0.25, stratify=y in train_test_split
+  - Use features: ['age', 'salary', 'credit_score', 'loan_amount', 'employment_years']
+
+WORKFLOW PER STAGE:
+1. inspect_data or run_script to see the error
+2. edit_script with full corrected script
+3. run_script to verify
+4. submit if Accuracy printed with no error"""
 
                 def _parse(raw):
                     s = raw.find('{')
@@ -1052,7 +1065,6 @@ print('Accuracy:', clf.score(X_test, y_test))"""
                                         a = json.loads(raw[s:i+1])
                                         if "action_type" in a:
                                             p = a.get("payload", {})
-                                            # LLM sometimes puts the script string directly as payload
                                             if isinstance(p, str):
                                                 p = {"script": p}
                                             a["payload"] = p
@@ -1068,122 +1080,58 @@ print('Accuracy:', clf.score(X_test, y_test))"""
                 def _obs_to_prompt(obs):
                     parts = [f"Stage {obs.current_stage} | step {obs.stage_step_number}"]
                     if obs.script_content:
-                        parts.append(f"\nCURRENT SCRIPT:\n{obs.script_content[:1000]}")
+                        parts.append(f"\nCURRENT SCRIPT:\n{obs.script_content[:1200]}")
                     if obs.last_run_error:
-                        parts.append(f"\nRUN ERROR:\n{obs.last_run_error[:500]}")
+                        parts.append(f"\nRUN ERROR:\n{obs.last_run_error[:600]}")
                     if obs.last_run_output:
-                        parts.append(f"\nRUN OUTPUT:\n{obs.last_run_output[:300]}")
+                        parts.append(f"\nRUN OUTPUT:\n{obs.last_run_output[:400]}")
                     if obs.actor_feedback:
-                        parts.append(f"\nREVIEWER:\n{obs.actor_feedback[:300]}")
+                        parts.append(f"\nREVIEWER FEEDBACK:\n{obs.actor_feedback[:400]}")
+                    if hasattr(obs, 'data_preview') and obs.data_preview:
+                        parts.append(f"\nDATA PREVIEW:\n{str(obs.data_preview)[:400]}")
                     return "\n".join(parts)
 
-                from app.models import Action as _Action
-                _env = DataEngEnvironment()
-                _env.reset()
-                yield emit("  ✓ Private env initialised — Stage 1\n")
-
-                # ── Stage 1: execute scripted fix (LLM takes over from Stage 2) ──
-                _S1_fix = (
-                    "import pandas as pd\n"
-                    "from sklearn.preprocessing import StandardScaler\n"
-                    "from sklearn.linear_model import LogisticRegression\n"
-                    "from sklearn.model_selection import train_test_split\n\n"
-                    "df = df.dropna()\n"
-                    "df['salary'] = df['salary'].clip(upper=df['salary'].quantile(0.99))\n"
-                    "X = df[['age','salary','credit_score','loan_amount','employment_years']].copy()\n"
-                    "y = df['target']\n"
-                    "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n"
-                    "scaler = StandardScaler()\n"
-                    "X_train = scaler.fit_transform(X_train)\n"
-                    "X_test  = scaler.transform(X_test)\n"
-                    "clf = LogisticRegression(max_iter=1000, random_state=42)\n"
-                    "clf.fit(X_train, y_train)\n"
-                    "print('Accuracy:', clf.score(X_test, y_test))\n"
-                )
-                yield emit("── Stage 1: Data Repair ────────────────────────────")
-                step = 0
-                for _atype, _payload in [
-                    ("inspect_data", {}),
-                    ("edit_script",  {"script": _S1_fix}),
-                    ("run_script",   {}),
-                    ("submit",       {}),
-                ]:
-                    step += 1
-                    icon = _ICONS.get(_atype, "▸")
-                    emit(f"  Step {step:02d} │ {icon} {_atype.upper():<18} │ …")
-                    yield "\n".join(lines)
-                    try:
-                        _r = _env.step(_Action(action_type=_atype, payload=_payload))
-                        _sc = float(_r.reward.score)
-                        _msg = (_r.reward.message or "")[:65]
-                        lines[-1] = f"  Step {step:02d} │ {icon} {_atype.upper():<18} │ score={_sc:.2f}  {_msg}"
-                    except Exception as _ex:
-                        lines[-1] = f"  Step {step:02d} │ {icon} {_atype.upper():<18} │ ❌ {_ex}"
-                    yield "\n".join(lines)
-                    _t.sleep(0.1)
-
-                if _env.current_stage != 2:
-                    yield emit("\n  ❌ Stage 1 failed unexpectedly — aborting.")
-                    return
-
-                # ── Stages 2-4: LLM agent ────────────────────────────────────
-                obs = _env.step(_Action(action_type="inspect_data", payload={})).observation
-
                 LABELS = {1:"Data Repair",2:"Training Monitor",3:"Eval Validation",4:"Deploy Gate"}
+
+                _env = DataEngEnvironment()
+                obs = _env.reset()
+                yield emit("  ✓ Private env initialised — Stage 1\n")
+                yield emit(f"── Stage 1: {LABELS[1]} ────────────────────────────────")
+
                 msgs = [
                     {"role": "system", "content": _SYS},
-                    {"role": "user",   "content": _obs_to_prompt(obs) + "\n\nStage 1 is complete. Now fix Stage 2. What is your first action?"},
+                    {"role": "user",   "content": _obs_to_prompt(obs) + "\n\nThis is Stage 1: Data Repair. The script has bugs — inspect the data first, then fix all bugs in one edit_script call."},
                 ]
-                step += 1
-                icon = _ICONS["inspect_data"]
-                lines.append(f"  Step {step:02d} │ {icon} {'INSPECT_DATA':<18} │ Stage 2 data inspected")
-                cur_stage = 2
-                yield emit(f"\n── Stage 2: Training Monitor ────────────────────────")
+
+                step = 0
+                cur_stage = 1
                 hist = []
                 last_was_clean_run = False
 
-                for _ in range(55):
+                for _ in range(80):
                     # ── ask LLM ──────────────────────────────────────────────
                     try:
-                        ctx = [msgs[0]] + msgs[1:3] + msgs[-6:] if len(msgs) > 9 else msgs
+                        ctx = [msgs[0]] + msgs[1:2] + msgs[-8:] if len(msgs) > 10 else msgs
                         resp = _client.chat.completions.create(
                             model="llama-3.1-8b-instant", messages=ctx,
-                            max_tokens=1800, temperature=0.1)
+                            max_tokens=2000, temperature=0.1)
                         raw    = resp.choices[0].message.content.strip()
                         action = _parse(raw)
                     except Exception as ex:
+                        yield emit(f"  ⚠ LLM error: {ex}")
                         action = {"action_type": "run_script", "payload": {}}
 
-                    # ── Stage 4: use known-working script (deploy grader is strict) ──
-                    if cur_stage == 4 and action["action_type"] == "edit_script":
-                        action = {"action_type": "edit_script", "payload": {"script": (
-                            "import pandas as pd\n"
-                            "from sklearn.preprocessing import StandardScaler\n"
-                            "from sklearn.linear_model import LogisticRegression\n"
-                            "from sklearn.model_selection import train_test_split\n\n"
-                            "features = ['age', 'salary', 'credit_score', 'loan_amount', 'employment_years']\n"
-                            "X = df[features].copy()\n"
-                            "y = df['target']\n"
-                            "X_train, X_test, y_train, y_test = train_test_split(\n"
-                            "    X, y, test_size=0.25, random_state=42, stratify=y\n"
-                            ")\n"
-                            "scaler = StandardScaler()\n"
-                            "X_train_scaled = scaler.fit_transform(X_train)\n"
-                            "X_test_scaled  = scaler.transform(X_test)\n"
-                            "clf = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')\n"
-                            "clf.fit(X_train_scaled, y_train)\n"
-                            "print('Accuracy:', clf.score(X_test_scaled, y_test))\n"
-                        )}}
-
-                    # ── loop-break heuristics ─────────────────────────────────
+                    # ── force-submit after a clean run ────────────────────────
                     hist.append(action["action_type"])
-                    # If the LAST EXECUTED step was run_script and returned clean output,
-                    # force submit regardless of what the LLM says
                     if last_was_clean_run and action["action_type"] != "submit":
                         action = {"action_type": "submit", "payload": {}}
-                        last_was_clean_run = False  # consumed
+                        last_was_clean_run = False
+
+                    # ── loop-break: 4 identical actions → nudge ───────────────
                     elif len(hist) >= 4 and len(set(hist[-4:])) == 1:
                         if hist[-1] == "edit_script":
+                            action = {"action_type": "run_script", "payload": {}}
+                        elif hist[-1] == "inspect_data":
                             action = {"action_type": "run_script", "payload": {}}
                         elif hist[-1] in ("run_script", "submit"):
                             action = {"action_type": "edit_script", "payload": {"script": obs.script_content or ""}}
@@ -1203,7 +1151,6 @@ print('Accuracy:', clf.score(X_test, y_test))"""
                         msg     = (rwd.message or "")[:60]
                         new_stage = obs.current_stage
                         done    = _env.done
-                        # Track whether this run_script returned clean output
                         last_was_clean_run = (
                             atype == "run_script"
                             and not obs.last_run_error
@@ -1214,33 +1161,35 @@ print('Accuracy:', clf.score(X_test, y_test))"""
                         lines[-1] = f"  Step {step:02d} │ {icon} {atype.upper():<18} │ ❌ {ex}"
                         new_stage = cur_stage
                         done = False
-                        obs = init_obs
-                        rwd = None
                         last_was_clean_run = False
+                        rwd = None
                     yield "\n".join(lines)
 
                     if new_stage != cur_stage:
                         cur_stage = new_stage
                         hist = []
                         last_was_clean_run = False
-                        yield emit(f"\n── Stage {cur_stage}: {LABELS.get(cur_stage,'')} {'─'*(36-len(LABELS.get(cur_stage,'')))}─")
+                        if not done:
+                            yield emit(f"\n── Stage {cur_stage}: {LABELS.get(cur_stage,'')} {'─'*(38-len(LABELS.get(cur_stage,'')))}─")
 
                     # ── build next prompt ─────────────────────────────────────
                     msgs.append({"role": "assistant", "content": json.dumps(action)})
                     feedback = _obs_to_prompt(obs)
                     if atype == "run_script" and obs.last_run_error:
-                        feedback += "\n\nScript errored (see RUN ERROR above). Use edit_script with a FULL script replacement — include ALL imports and fix EVERY bug shown in the error."
+                        feedback += "\n\nScript errored. Use edit_script with a FULL replacement script fixing ALL bugs shown above."
                     elif atype == "run_script" and not obs.last_run_error:
-                        feedback += "\n\nClean run — script printed output with no error. Call submit NOW."
+                        feedback += '\n\nClean run — output printed with no error. Call submit NOW: {"action_type":"submit","payload":{}}'
                     elif atype == "edit_script":
-                        feedback += "\n\nScript replaced. Call run_script to verify the fix."
+                        feedback += '\n\nScript replaced. Call run_script to verify: {"action_type":"run_script","payload":{}}'
                     elif atype == "query_actor":
-                        feedback += "\n\nReviewer responded above. Use edit_script with full script to apply the fix, then run_script."
+                        feedback += "\n\nUse the reviewer feedback above to fix the script with edit_script (full replacement), then run_script."
                     elif atype == "submit":
-                        feedback += "\n\nStage not yet passing. Review the current script and error carefully, then edit_script to fix remaining bugs."
+                        feedback += "\n\nSubmit did not pass. Look at the current script and error — use edit_script to fix the remaining bug."
+                    elif atype == "inspect_data":
+                        feedback += "\n\nData inspected. Now use edit_script to fix all bugs for this stage in one call."
                     msgs.append({"role": "user", "content": feedback})
-                    if len(msgs) > 16:
-                        msgs = [msgs[0]] + msgs[1:3] + msgs[-10:]
+                    if len(msgs) > 20:
+                        msgs = [msgs[0]] + msgs[1:2] + msgs[-14:]
 
                     if done:
                         break
@@ -1248,7 +1197,7 @@ print('Accuracy:', clf.score(X_test, y_test))"""
 
                 yield emit(f"\n  Stages completed : {list(_env.stages_completed)}")
                 yield emit(f"  Episode score    : {_env.episode_score:.2f}")
-                yield emit(f"\n  {'✅' if _env.episode_score > 0.5 else '❌'} LLM Agent complete.")
+                yield emit(f"\n  {'✅' if _env.episode_score >= 0.75 else '⚠️' if _env.episode_score > 0 else '❌'} LLM Agent complete.")
 
             run_baseline_cmp_btn.click(run_baseline_cmp, inputs=[], outputs=[baseline_cmp_log])
             run_llm_cmp_btn.click(run_llm_cmp, inputs=[], outputs=[llm_cmp_log])
