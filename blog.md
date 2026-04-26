@@ -35,20 +35,7 @@ These aren't abstract challenges. They are the exact class of bugs that get miss
 
 ## How the Environment Works
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│                    PipelineOps Arena                     │
-│                                                          │
-│   Stage 1      Stage 2      Stage 3       Stage 4        │
-│  Data Repair → Training  → Eval Fix  → Deploy Gate      │
-│  (KeyError)    (NaN loss)  (Leakage)    (Fairness)       │
-│                                                          │
-│   Each stage: inspect → edit → run → submit              │
-│   Grade ≥ 0.70  →  advance to next stage                │
-│   Grade < 0.70 at Stage 4  →  loop back (−0.30)         │
-│   Max steps: 60 total, 15 per stage                      │
-└──────────────────────────────────────────────────────────┘
-```
+![PipelineOps Arena — System Architecture](https://huggingface.co/spaces/CoBeDigger/DataEngEnv/resolve/main/arch_diagram.png)
 
 The agent talks to a **FastAPI server** over plain HTTP — no special SDK, just REST. Built on the [OpenEnv](https://github.com/openenv) spec.
 
