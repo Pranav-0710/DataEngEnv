@@ -82,78 +82,85 @@ def build_stage_html(status: dict) -> str:
     for sid, name, desc, icon, accent in stages:
         sid_int = int(sid)
         if sid_int in completed:
-            glow = f"box-shadow:0 0 18px rgba(34,197,94,0.2);"
-            border = "border-color:rgba(34,197,94,0.35);"
-            bg = "background:rgba(34,197,94,0.06);"
-            badge = '<span style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#86efac;font-size:0.68rem;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap">✅ DONE</span>'
-            num_style = f"color:#86efac;"
+            glow = "box-shadow:0 0 22px rgba(34,197,94,0.18),0 0 60px rgba(34,197,94,0.06);"
+            border = "border-color:rgba(34,197,94,0.3);"
+            bg = "background:linear-gradient(135deg,rgba(34,197,94,0.07),rgba(34,197,94,0.03));"
+            badge = '<span style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.35);color:#86efac;font-size:0.65rem;font-weight:800;padding:3px 10px;border-radius:999px;letter-spacing:.04em">✓ DONE</span>'
+            num_col = "#86efac"
+            icon_bg = "background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.3);"
         elif sid_int == current:
-            glow = f"box-shadow:0 0 20px {accent}30,inset 0 0 20px {accent}08;"
-            border = f"border-color:{accent}80;"
-            bg = f"background:linear-gradient(135deg,{accent}12,{accent}06);"
-            badge = f'<span style="background:{accent}25;border:1px solid {accent}80;color:#c4b5fd;font-size:0.68rem;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;animation:pulse-badge 1.5s infinite">⚡ ACTIVE</span>'
-            num_style = f"color:{accent};"
+            glow = f"box-shadow:0 0 24px {accent}22,0 0 60px {accent}08,inset 0 0 24px {accent}06;"
+            border = f"border-color:{accent}70;"
+            bg = f"background:linear-gradient(135deg,{accent}14,{accent}06,rgba(2,6,9,0.8));"
+            badge = f'<span style="background:{accent}20;border:1px solid {accent}70;color:#c4b5fd;font-size:0.65rem;font-weight:800;padding:3px 10px;border-radius:999px;letter-spacing:.04em;animation:pulse-badge 1.8s ease infinite">⚡ ACTIVE</span>'
+            num_col = accent
+            icon_bg = f"background:{accent}20;border:1px solid {accent}40;"
         else:
             glow = ""
-            border = "border-color:rgba(255,255,255,0.06);"
-            bg = "background:rgba(255,255,255,0.02);"
-            badge = '<span style="background:rgba(71,85,105,0.15);border:1px solid rgba(71,85,105,0.25);color:#334155;font-size:0.68rem;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap">⏳ PENDING</span>'
-            num_style = "color:#334155;"
+            border = "border-color:rgba(255,255,255,0.05);"
+            bg = "background:rgba(255,255,255,0.015);"
+            badge = '<span style="background:rgba(30,41,59,0.5);border:1px solid rgba(71,85,105,0.2);color:#1e293b;font-size:0.65rem;font-weight:800;padding:3px 10px;border-radius:999px;letter-spacing:.04em">PENDING</span>'
+            num_col = "#1e293b"
+            icon_bg = "background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);"
 
         cards += f"""
-        <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;
-                    border:1px solid;{border}{bg}{glow}transition:all 0.3s">
-            <div style="width:28px;height:28px;border-radius:8px;background:{accent}20;border:1px solid {accent}40;
-                        display:flex;align-items:center;justify-content:center;font-size:0.85rem;flex-shrink:0">{icon}</div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 13px;border-radius:10px;
+                    border:1px solid;{border}{bg}{glow}transition:all 0.35s ease">
+            <div style="width:30px;height:30px;border-radius:8px;{icon_bg}
+                        display:flex;align-items:center;justify-content:center;font-size:0.9rem;flex-shrink:0">{icon}</div>
             <div style="flex:1;min-width:0">
-                <div style="font-size:0.82rem;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                    <span style="{num_style}font-weight:900">S{sid}</span> · {name}
+                <div style="font-size:0.8rem;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                    <span style="color:{num_col};font-weight:900;font-variant-numeric:tabular-nums">S{sid}</span>
+                    <span style="color:#334155;margin:0 5px">·</span>{name}
                 </div>
-                <div style="font-size:0.7rem;color:#475569;margin-top:1px">{desc}</div>
+                <div style="font-size:0.68rem;color:#334155;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{desc}</div>
             </div>
             {badge}
         </div>"""
 
     score_pct = int(episode_score * 100)
     bar_color = "#22c55e" if score_pct >= 75 else "#f59e0b" if score_pct >= 25 else "#6366f1"
-    seg_w = 25
     segments = ""
     for i in range(4):
         filled = (i + 1) * 25 <= score_pct
-        active = not filled and i * 25 < score_pct
-        if filled:
-            c = bar_color
-            op = "1"
-        elif active:
-            c = bar_color
-            op = "0.5"
-        else:
-            c = "rgba(255,255,255,0.06)"
-            op = "1"
-        segments += f'<div style="flex:1;height:6px;border-radius:3px;background:{c};opacity:{op};transition:all 0.5s"></div>'
+        partial = not filled and i * 25 < score_pct
+        c = bar_color if (filled or partial) else "rgba(255,255,255,0.05)"
+        op = "1" if filled else ("0.45" if partial else "1")
+        glow_s = f"box-shadow:0 0 8px {bar_color}60;" if filled else ""
+        segments += f'<div style="flex:1;height:5px;border-radius:3px;background:{c};opacity:{op};{glow_s}transition:all 0.5s ease"></div>'
 
     return f"""
-    <div style="background:#080d14;border:1px solid rgba(99,102,241,0.2);border-radius:14px;padding:18px 20px;height:100%">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:0.8rem;font-weight:800;color:#e2e8f0;letter-spacing:.04em">PIPELINE STATUS</div>
-        <div style="display:flex;gap:5px">
-          <span style="background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.25);
-                       color:#818cf8;font-size:0.65rem;font-weight:700;padding:2px 8px;border-radius:999px">S{current}/4</span>
-          <span style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);
-                       color:#64748b;font-size:0.65rem;font-weight:700;padding:2px 8px;border-radius:999px">{total_steps} steps</span>
-          <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);
-                       color:#86efac;font-size:0.65rem;font-weight:700;padding:2px 8px;border-radius:999px">{score_pct}%</span>
+    <div style="background:linear-gradient(160deg,#060c16,#080d1a);border:1px solid rgba(99,102,241,0.18);
+                border-radius:14px;padding:18px 18px 16px;height:100%;position:relative;overflow:hidden">
+      <!-- subtle corner glow -->
+      <div style="position:absolute;top:-40px;right:-40px;width:150px;height:150px;
+        background:radial-gradient(circle,rgba(99,102,241,0.07) 0%,transparent 65%);
+        border-radius:50%;pointer-events:none"></div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;position:relative">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:5px;height:5px;border-radius:50%;background:#6366f1;animation:glow-pulse 2s infinite"></div>
+          <div style="font-size:0.72rem;font-weight:800;color:#94a3b8;letter-spacing:.07em">PIPELINE STATUS</div>
+        </div>
+        <div style="display:flex;gap:4px">
+          <span style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.22);
+                       color:#818cf8;font-size:0.62rem;font-weight:700;padding:2px 8px;border-radius:999px">S{current}/4</span>
+          <span style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+                       color:#475569;font-size:0.62rem;font-weight:700;padding:2px 8px;border-radius:999px">{total_steps}✦</span>
+          <span style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.22);
+                       color:#86efac;font-size:0.62rem;font-weight:700;padding:2px 8px;border-radius:999px">{score_pct}%</span>
         </div>
       </div>
-      <div style="display:flex;gap:3px;margin-bottom:14px">{segments}</div>
-      <div style="display:flex;flex-direction:column;gap:8px">{cards}</div>
+
+      <div style="display:flex;gap:3px;margin-bottom:13px">{segments}</div>
+      <div style="display:flex;flex-direction:column;gap:7px;position:relative">{cards}</div>
     </div>
     """
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 
 CUSTOM_CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -163,196 +170,218 @@ body, .gradio-container {
     color: #e2e8f0 !important;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 999px; }
+::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.25); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.45); }
 
-/* ── Animations ───────────────────────────────────────────── */
+/* ── Keyframes ───────────────────────────────────────────── */
 @keyframes gradient-shift {
     0%   { background-position: 0% 50%; }
     50%  { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
 @keyframes glow-pulse {
-    0%, 100% { opacity: 0.6; }
-    50%       { opacity: 1; }
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%       { opacity: 1;    transform: scale(1.05); }
 }
 @keyframes pulse-badge {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
-    50%       { box-shadow: 0 0 8px 2px rgba(99,102,241,0.2); }
-}
-@keyframes scanline {
-    0%   { transform: translateY(-100%); }
-    100% { transform: translateY(100vh); }
-}
-@keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50%       { transform: translateY(-6px); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
+    50%       { box-shadow: 0 0 10px 3px rgba(99,102,241,0.18); }
 }
 @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(12px); }
+    from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+@keyframes border-spin {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+}
 
-/* ── Global background with subtle grid ──────────────────── */
+/* ── Global grid overlay ─────────────────────────────────── */
 .gradio-container::before {
     content: '';
     position: fixed;
     inset: 0;
     background-image:
-        linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
+        linear-gradient(rgba(99,102,241,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.025) 1px, transparent 1px);
+    background-size: 44px 44px;
     pointer-events: none;
     z-index: 0;
 }
 
-/* ── Tab styling ─────────────────────────────────────────── */
+/* ── Tab nav ─────────────────────────────────────────────── */
 .tabs > .tab-nav {
-    background: rgba(8,13,20,0.95) !important;
-    border-bottom: 1px solid rgba(99,102,241,0.15) !important;
-    backdrop-filter: blur(12px) !important;
-    padding: 0 4px !important;
-    gap: 2px !important;
+    background: rgba(6,10,18,0.97) !important;
+    border-bottom: 1px solid rgba(99,102,241,0.12) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    padding: 0 6px !important;
+    gap: 1px !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 100 !important;
 }
 .tabs > .tab-nav button {
-    color: #475569 !important;
-    font-weight: 600 !important;
-    font-size: 0.85rem !important;
-    padding: 12px 20px !important;
+    color: #334155 !important;
+    font-weight: 700 !important;
+    font-size: 0.83rem !important;
+    padding: 13px 22px !important;
     border-radius: 0 !important;
-    transition: all 0.2s !important;
+    transition: all 0.22s ease !important;
     border-bottom: 2px solid transparent !important;
-    letter-spacing: .01em !important;
+    letter-spacing: .015em !important;
+    position: relative !important;
 }
 .tabs > .tab-nav button:hover {
-    color: #94a3b8 !important;
-    background: rgba(99,102,241,0.04) !important;
+    color: #64748b !important;
+    background: rgba(99,102,241,0.03) !important;
 }
 .tabs > .tab-nav button.selected {
     color: #a5b4fc !important;
     border-bottom: 2px solid #6366f1 !important;
-    background: rgba(99,102,241,0.06) !important;
+    background: rgba(99,102,241,0.05) !important;
 }
 
-/* ── Action buttons ──────────────────────────────────────── */
+/* ── Primary button (animated gradient) ──────────────────── */
 .btn-primary {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #6d28d9 100%) !important;
-    background-size: 200% 200% !important;
-    animation: gradient-shift 4s ease infinite !important;
+    background: linear-gradient(135deg, #4338ca 0%, #6d28d9 40%, #7c3aed 70%, #4f46e5 100%) !important;
+    background-size: 300% 300% !important;
+    animation: gradient-shift 5s ease infinite !important;
     color: white !important;
-    font-weight: 700 !important;
-    font-size: 0.9rem !important;
-    letter-spacing: .02em !important;
+    font-weight: 800 !important;
+    font-size: 0.88rem !important;
+    letter-spacing: .025em !important;
     border: none !important;
     border-radius: 10px !important;
-    padding: 11px 20px !important;
-    transition: all 0.2s !important;
-    box-shadow: 0 4px 20px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.1) !important;
+    padding: 12px 22px !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+    box-shadow: 0 4px 22px rgba(99,102,241,0.38), 0 1px 0 rgba(255,255,255,0.08) inset !important;
     position: relative !important;
     overflow: hidden !important;
+}
+.btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, transparent 60%);
+    pointer-events: none;
 }
 .btn-primary::after {
     content: '';
     position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
-    pointer-events: none;
+    top: 0; left: -100%; width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    animation: shimmer 3s ease infinite;
 }
 .btn-primary:hover {
-    transform: translateY(-1px) !important;
-    box-shadow: 0 6px 28px rgba(99,102,241,0.5) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 32px rgba(99,102,241,0.52), 0 1px 0 rgba(255,255,255,0.1) inset !important;
 }
 .btn-primary:active { transform: translateY(0) !important; }
 
+/* ── Reset button ────────────────────────────────────────── */
 .btn-reset {
-    background: rgba(255,255,255,0.04) !important;
-    color: #64748b !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
+    background: rgba(255,255,255,0.03) !important;
+    color: #475569 !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
     border-radius: 10px !important;
     font-weight: 600 !important;
-    font-size: 0.88rem !important;
-    transition: all 0.2s !important;
+    font-size: 0.85rem !important;
+    transition: all 0.2s ease !important;
 }
 .btn-reset:hover {
-    background: rgba(255,255,255,0.08) !important;
+    background: rgba(255,255,255,0.07) !important;
     color: #94a3b8 !important;
-    border-color: rgba(255,255,255,0.15) !important;
+    border-color: rgba(255,255,255,0.13) !important;
+    transform: translateY(-1px) !important;
 }
 
+/* ── Actor button ────────────────────────────────────────── */
 .btn-actor {
-    background: rgba(245,158,11,0.08) !important;
-    color: #fbbf24 !important;
-    border: 1px solid rgba(245,158,11,0.25) !important;
+    background: rgba(245,158,11,0.06) !important;
+    color: #d97706 !important;
+    border: 1px solid rgba(245,158,11,0.2) !important;
     border-radius: 10px !important;
-    font-weight: 600 !important;
-    font-size: 0.88rem !important;
-    transition: all 0.2s !important;
+    font-weight: 700 !important;
+    font-size: 0.85rem !important;
+    transition: all 0.2s ease !important;
 }
 .btn-actor:hover {
-    background: rgba(245,158,11,0.15) !important;
-    box-shadow: 0 0 16px rgba(245,158,11,0.2) !important;
+    background: rgba(245,158,11,0.12) !important;
+    color: #fbbf24 !important;
+    border-color: rgba(245,158,11,0.35) !important;
+    box-shadow: 0 0 20px rgba(245,158,11,0.15) !important;
+    transform: translateY(-1px) !important;
 }
 
 /* ── Code / terminal boxes ───────────────────────────────── */
-.code-box textarea, .code-box pre, .code-box .cm-editor {
-    background: #060b12 !important;
-    color: #c9d1d9 !important;
+.code-box textarea, .code-box pre, .code-box .cm-editor, .code-box .cm-scroller {
+    background: #04090f !important;
+    color: #cdd6f4 !important;
     font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.8rem !important;
-    line-height: 1.6 !important;
-    border: 1px solid rgba(99,102,241,0.12) !important;
+    font-size: 0.79rem !important;
+    line-height: 1.65 !important;
+    border: 1px solid rgba(99,102,241,0.1) !important;
     border-radius: 10px !important;
 }
-.code-box label { color: #475569 !important; font-size: 0.73rem !important; font-weight: 700 !important; letter-spacing: .04em !important; }
+.code-box label { color: #334155 !important; font-size: 0.7rem !important; font-weight: 800 !important; letter-spacing: .06em !important; }
+.code-box .cm-gutters { background: #04090f !important; border-right: 1px solid rgba(99,102,241,0.08) !important; }
+.code-box .cm-lineNumbers .cm-gutterElement { color: #1e293b !important; }
 
 .error-box textarea {
-    background: #0d0508 !important;
+    background: #0a0306 !important;
     color: #fca5a5 !important;
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 0.78rem !important;
-    line-height: 1.6 !important;
-    border: 1px solid rgba(239,68,68,0.2) !important;
+    line-height: 1.65 !important;
+    border: 1px solid rgba(239,68,68,0.15) !important;
     border-radius: 10px !important;
 }
-.error-box label { color: #7f1d1d !important; font-size: 0.73rem !important; font-weight: 700 !important; letter-spacing: .04em !important; }
+.error-box label { color: #450a0a !important; font-size: 0.7rem !important; font-weight: 800 !important; letter-spacing: .06em !important; }
 
 .status-box textarea {
-    background: #030a05 !important;
+    background: #020a04 !important;
     color: #4ade80 !important;
     font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.83rem !important;
+    font-size: 0.82rem !important;
     font-weight: 600 !important;
     letter-spacing: .01em !important;
-    border: 1px solid rgba(34,197,94,0.15) !important;
+    border: 1px solid rgba(34,197,94,0.12) !important;
     border-radius: 10px !important;
 }
 
 /* ── Inputs ──────────────────────────────────────────────── */
 textarea, input[type="text"], select {
-    background: #060b12 !important;
-    border: 1px solid rgba(99,102,241,0.15) !important;
+    background: #04090f !important;
+    border: 1px solid rgba(99,102,241,0.12) !important;
     color: #e2e8f0 !important;
     border-radius: 8px !important;
     font-family: 'Inter', sans-serif !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
 }
 textarea:focus, input:focus {
-    border-color: rgba(99,102,241,0.4) !important;
-    box-shadow: 0 0 0 3px rgba(99,102,241,0.08) !important;
+    border-color: rgba(99,102,241,0.38) !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.07), 0 0 16px rgba(99,102,241,0.06) !important;
     outline: none !important;
 }
-label span { color: #475569 !important; font-size: 0.73rem !important; font-weight: 700 !important; letter-spacing: .04em !important; }
+label span { color: #334155 !important; font-size: 0.7rem !important; font-weight: 800 !important; letter-spacing: .06em !important; }
 
 /* ── Dropdown ────────────────────────────────────────────── */
 .gr-dropdown, .gr-dropdown > div, .gr-dropdown input {
-    background: #060b12 !important;
-    border: 1px solid rgba(99,102,241,0.15) !important;
+    background: #04090f !important;
+    border: 1px solid rgba(99,102,241,0.12) !important;
     color: #e2e8f0 !important;
     border-radius: 8px !important;
 }
 
-/* ── Remove Gradio default padding/bg ────────────────────── */
+/* ── Clean container ─────────────────────────────────────── */
 .gradio-container > .main { background: transparent !important; }
 footer { display: none !important; }
 """
@@ -361,254 +390,358 @@ footer { display: none !important; }
 
 HERO_HTML = """
 <div style="
-  background: linear-gradient(135deg, #040810 0%, #0a0d1f 35%, #0d0520 65%, #040810 100%);
-  border: 1px solid rgba(99,102,241,0.2);
-  border-radius: 18px;
-  padding: 40px 48px 32px;
-  margin-bottom: 4px;
+  background: linear-gradient(145deg, #030711 0%, #080c1e 30%, #0c0520 60%, #050813 100%);
+  border: 1px solid rgba(99,102,241,0.18);
+  border-radius: 20px;
+  padding: 44px 52px 36px;
+  margin-bottom: 6px;
   position: relative;
   overflow: hidden;
+  animation: fadeInUp 0.6s ease both;
 ">
 
-  <!-- Glow orbs -->
-  <div style="position:absolute;top:-100px;right:-60px;width:400px;height:400px;
-    background:radial-gradient(circle,rgba(99,102,241,0.1) 0%,transparent 65%);
-    border-radius:50%;pointer-events:none;animation:glow-pulse 4s ease-in-out infinite"></div>
-  <div style="position:absolute;bottom:-80px;left:20%;width:300px;height:300px;
-    background:radial-gradient(circle,rgba(139,92,246,0.07) 0%,transparent 65%);
-    border-radius:50%;pointer-events:none;animation:glow-pulse 6s ease-in-out infinite reverse"></div>
-  <div style="position:absolute;top:50%;left:-40px;width:200px;height:200px;
-    background:radial-gradient(circle,rgba(217,70,239,0.05) 0%,transparent 65%);
+  <!-- Ambient glow orbs -->
+  <div style="position:absolute;top:-120px;right:-80px;width:500px;height:500px;
+    background:radial-gradient(circle,rgba(99,102,241,0.09) 0%,transparent 62%);
+    border-radius:50%;pointer-events:none;animation:glow-pulse 5s ease-in-out infinite"></div>
+  <div style="position:absolute;bottom:-100px;left:15%;width:380px;height:380px;
+    background:radial-gradient(circle,rgba(139,92,246,0.07) 0%,transparent 62%);
+    border-radius:50%;pointer-events:none;animation:glow-pulse 7s ease-in-out infinite reverse"></div>
+  <div style="position:absolute;top:40%;right:25%;width:250px;height:250px;
+    background:radial-gradient(circle,rgba(217,70,239,0.04) 0%,transparent 65%);
     border-radius:50%;pointer-events:none"></div>
 
-  <!-- Top row: title + stat pills -->
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px;position:relative">
-    <div style="flex:1;min-width:300px">
+  <!-- Top section -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:28px;position:relative;z-index:1">
+    <div style="flex:1;min-width:320px">
 
       <!-- Eyebrow -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <div style="width:6px;height:6px;border-radius:50%;background:#6366f1;animation:glow-pulse 2s infinite"></div>
-        <span style="font-size:0.7rem;font-weight:700;letter-spacing:.12em;color:#475569;text-transform:uppercase">
-          Reinforcement Learning Environment · OpenEnv Compliant
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="display:flex;gap:4px;align-items:center">
+          <div style="width:6px;height:6px;border-radius:50%;background:#6366f1;animation:glow-pulse 2s infinite"></div>
+          <div style="width:4px;height:4px;border-radius:50%;background:#8b5cf6;animation:glow-pulse 2.5s infinite 0.3s"></div>
+          <div style="width:3px;height:3px;border-radius:50%;background:#d946ef;animation:glow-pulse 3s infinite 0.6s"></div>
+        </div>
+        <span style="font-size:0.68rem;font-weight:800;letter-spacing:.14em;color:#334155;text-transform:uppercase">
+          Reinforcement Learning Environment · OpenEnv Compliant · Hackathon 2026
         </span>
       </div>
 
       <!-- Title -->
-      <h1 style="font-size:2.6rem;font-weight:900;line-height:1.1;letter-spacing:-1.5px;margin-bottom:12px">
+      <h1 style="font-size:3rem;font-weight:900;line-height:1.05;letter-spacing:-2px;margin-bottom:14px">
         <span style="color:#f1f5f9">Pipeline</span><span style="
-          background:linear-gradient(90deg,#818cf8,#c084fc,#e879f9);
-          background-size:200% 100%;
-          animation:gradient-shift 3s ease infinite;
-          -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+          background: linear-gradient(90deg, #818cf8 0%, #c084fc 40%, #e879f9 70%, #818cf8 100%);
+          background-size: 200% 100%;
+          animation: gradient-shift 3.5s ease infinite;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         ">Ops Arena</span>
       </h1>
 
       <!-- Subtitle -->
-      <p style="color:#64748b;font-size:0.92rem;line-height:1.7;max-width:580px;margin-bottom:20px">
+      <p style="color:#475569;font-size:0.9rem;line-height:1.75;max-width:600px;margin-bottom:22px">
         A <strong style="color:#818cf8">4-stage cascading ML pipeline debugger</strong> where AI agents
         autonomously inspect data, patch broken scripts, execute sandboxed Python, and navigate
-        cascading failures — graded <strong style="color:#4ade80">deterministically</strong>, zero human bias.
+        cascading failures — graded <strong style="color:#4ade80">deterministically</strong> with zero human bias.
+        Built on <strong style="color:#a78bfa">OpenEnv</strong>.
       </p>
 
-      <!-- Badges -->
+      <!-- Badge strip -->
       <div style="display:flex;gap:7px;flex-wrap:wrap">
-        <span style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);
-          color:#93c5fd;padding:4px 12px;border-radius:999px;font-size:0.73rem;font-weight:600">
+        <span style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);
+          color:#7dd3fc;padding:5px 13px;border-radius:999px;font-size:0.7rem;font-weight:700;letter-spacing:.03em">
           ⚡ 4-Stage Cascade
         </span>
-        <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);
-          color:#86efac;padding:4px 12px;border-radius:999px;font-size:0.73rem;font-weight:600">
-          ✅ Deterministic Grading
+        <span style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);
+          color:#86efac;padding:5px 13px;border-radius:999px;font-size:0.7rem;font-weight:700;letter-spacing:.03em">
+          ✓ Deterministic Grading
         </span>
-        <span style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);
-          color:#fcd34d;padding:4px 12px;border-radius:999px;font-size:0.73rem;font-weight:600">
-          📊 Reward ∈ [0, 1]
+        <span style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);
+          color:#fcd34d;padding:5px 13px;border-radius:999px;font-size:0.7rem;font-weight:700;letter-spacing:.03em">
+          📊 Dense Reward Shaping
         </span>
-        <span style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);
-          color:#d8b4fe;padding:4px 12px;border-radius:999px;font-size:0.73rem;font-weight:600">
+        <span style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);
+          color:#d8b4fe;padding:5px 13px;border-radius:999px;font-size:0.7rem;font-weight:700;letter-spacing:.03em">
           🦾 GRPO Fine-tuned LLM
         </span>
-        <span style="background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.3);
-          color:#fda4af;padding:4px 12px;border-radius:999px;font-size:0.73rem;font-weight:600">
-          🔒 Isolated Sandbox
+        <span style="background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.25);
+          color:#fda4af;padding:5px 13px;border-radius:999px;font-size:0.7rem;font-weight:700;letter-spacing:.03em">
+          🔒 Isolated Python Sandbox
         </span>
       </div>
     </div>
 
-    <!-- Stat cards -->
-    <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);
-                    border-radius:12px;padding:14px 16px;text-align:center">
-          <div style="font-size:2rem;font-weight:900;color:#818cf8;line-height:1">4</div>
-          <div style="font-size:0.65rem;color:#475569;font-weight:700;margin-top:3px;letter-spacing:.04em">STAGES</div>
-        </div>
-        <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);
-                    border-radius:12px;padding:14px 16px;text-align:center">
-          <div style="font-size:2rem;font-weight:900;color:#a78bfa;line-height:1">5</div>
-          <div style="font-size:0.65rem;color:#475569;font-weight:700;margin-top:3px;letter-spacing:.04em">ACTIONS</div>
-        </div>
-        <div style="background:rgba(217,70,239,0.06);border:1px solid rgba(217,70,239,0.2);
-                    border-radius:12px;padding:14px 16px;text-align:center">
-          <div style="font-size:2rem;font-weight:900;color:#e879f9;line-height:1">60</div>
-          <div style="font-size:0.65rem;color:#475569;font-weight:700;margin-top:3px;letter-spacing:.04em">MAX STEPS</div>
-        </div>
-        <div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);
-                    border-radius:12px;padding:14px 16px;text-align:center">
-          <div style="font-size:2rem;font-weight:900;color:#4ade80;line-height:1">1.0</div>
-          <div style="font-size:0.65rem;color:#475569;font-weight:700;margin-top:3px;letter-spacing:.04em">MAX SCORE</div>
-        </div>
+    <!-- Stats grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;min-width:210px">
+      <div style="background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(99,102,241,0.04));
+                  border:1px solid rgba(99,102,241,0.22);border-radius:13px;padding:15px 16px;text-align:center;
+                  position:relative;overflow:hidden">
+        <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;
+          background:radial-gradient(circle,rgba(99,102,241,0.15),transparent 70%);border-radius:50%"></div>
+        <div style="font-size:2.2rem;font-weight:900;color:#818cf8;line-height:1;font-variant-numeric:tabular-nums">4</div>
+        <div style="font-size:0.62rem;color:#334155;font-weight:800;margin-top:4px;letter-spacing:.06em">STAGES</div>
+      </div>
+      <div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(139,92,246,0.04));
+                  border:1px solid rgba(139,92,246,0.22);border-radius:13px;padding:15px 16px;text-align:center;
+                  position:relative;overflow:hidden">
+        <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;
+          background:radial-gradient(circle,rgba(139,92,246,0.15),transparent 70%);border-radius:50%"></div>
+        <div style="font-size:2.2rem;font-weight:900;color:#a78bfa;line-height:1;font-variant-numeric:tabular-nums">5</div>
+        <div style="font-size:0.62rem;color:#334155;font-weight:800;margin-top:4px;letter-spacing:.06em">ACTIONS</div>
+      </div>
+      <div style="background:linear-gradient(135deg,rgba(217,70,239,0.07),rgba(217,70,239,0.03));
+                  border:1px solid rgba(217,70,239,0.18);border-radius:13px;padding:15px 16px;text-align:center;
+                  position:relative;overflow:hidden">
+        <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;
+          background:radial-gradient(circle,rgba(217,70,239,0.12),transparent 70%);border-radius:50%"></div>
+        <div style="font-size:2.2rem;font-weight:900;color:#e879f9;line-height:1;font-variant-numeric:tabular-nums">60</div>
+        <div style="font-size:0.62rem;color:#334155;font-weight:800;margin-top:4px;letter-spacing:.06em">MAX STEPS</div>
+      </div>
+      <div style="background:linear-gradient(135deg,rgba(34,197,94,0.07),rgba(34,197,94,0.03));
+                  border:1px solid rgba(34,197,94,0.18);border-radius:13px;padding:15px 16px;text-align:center;
+                  position:relative;overflow:hidden">
+        <div style="position:absolute;top:-10px;right:-10px;width:50px;height:50px;
+          background:radial-gradient(circle,rgba(34,197,94,0.12),transparent 70%);border-radius:50%"></div>
+        <div style="font-size:2.2rem;font-weight:900;color:#4ade80;line-height:1;font-variant-numeric:tabular-nums">1.0</div>
+        <div style="font-size:0.62rem;color:#334155;font-weight:800;margin-top:4px;letter-spacing:.06em">MAX SCORE</div>
       </div>
     </div>
   </div>
 
   <!-- Divider -->
-  <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(99,102,241,0.2),rgba(217,70,239,0.15),transparent);
-              margin:24px 0 20px;position:relative"></div>
+  <div style="height:1px;
+    background:linear-gradient(90deg,transparent,rgba(99,102,241,0.18),rgba(217,70,239,0.12),transparent);
+    margin:28px 0 22px;position:relative;z-index:1"></div>
 
-  <!-- How It Works flow -->
-  <div style="position:relative">
-    <div style="font-size:0.68rem;font-weight:800;letter-spacing:.1em;color:#334155;margin-bottom:12px">
-      HOW IT WORKS
+  <!-- How It Works + Training Stats row -->
+  <div style="display:flex;gap:24px;flex-wrap:wrap;position:relative;z-index:1">
+
+    <!-- Flow steps -->
+    <div style="flex:2;min-width:300px">
+      <div style="font-size:0.65rem;font-weight:800;letter-spacing:.12em;color:#1e293b;margin-bottom:11px">HOW IT WORKS</div>
+      <div style="display:flex;align-items:stretch;gap:5px;flex-wrap:wrap">
+
+        <div style="display:flex;align-items:center;gap:9px;background:rgba(255,255,255,0.025);
+                    border:1px solid rgba(99,102,241,0.14);border-radius:10px;padding:10px 14px;flex:1;min-width:130px">
+          <span style="background:rgba(99,102,241,0.18);color:#818cf8;border-radius:7px;
+                       width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+                       font-size:0.68rem;font-weight:900;flex-shrink:0;font-variant-numeric:tabular-nums">1</span>
+          <span style="color:#64748b;font-size:0.76rem;font-weight:500;line-height:1.4">Agent gets broken pipeline + error log</span>
+        </div>
+
+        <div style="color:#1e293b;font-size:1rem;display:flex;align-items:center">›</div>
+
+        <div style="display:flex;align-items:center;gap:9px;background:rgba(255,255,255,0.025);
+                    border:1px solid rgba(139,92,246,0.14);border-radius:10px;padding:10px 14px;flex:1;min-width:130px">
+          <span style="background:rgba(139,92,246,0.18);color:#a78bfa;border-radius:7px;
+                       width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+                       font-size:0.68rem;font-weight:900;flex-shrink:0">2</span>
+          <span style="color:#64748b;font-size:0.76rem;font-weight:500;line-height:1.4">Calls inspect · edit · run · query</span>
+        </div>
+
+        <div style="color:#1e293b;font-size:1rem;display:flex;align-items:center">›</div>
+
+        <div style="display:flex;align-items:center;gap:9px;background:rgba(255,255,255,0.025);
+                    border:1px solid rgba(217,70,239,0.14);border-radius:10px;padding:10px 14px;flex:1;min-width:130px">
+          <span style="background:rgba(217,70,239,0.18);color:#e879f9;border-radius:7px;
+                       width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+                       font-size:0.68rem;font-weight:900;flex-shrink:0">3</span>
+          <span style="color:#64748b;font-size:0.76rem;font-weight:500;line-height:1.4">Fix runs in isolated Python sandbox</span>
+        </div>
+
+        <div style="color:#1e293b;font-size:1rem;display:flex;align-items:center">›</div>
+
+        <div style="display:flex;align-items:center;gap:9px;background:rgba(255,255,255,0.025);
+                    border:1px solid rgba(34,197,94,0.14);border-radius:10px;padding:10px 14px;flex:1;min-width:130px">
+          <span style="background:rgba(34,197,94,0.18);color:#4ade80;border-radius:7px;
+                       width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+                       font-size:0.68rem;font-weight:900;flex-shrink:0">4</span>
+          <span style="color:#64748b;font-size:0.76rem;font-weight:500;line-height:1.4">Grader scores → advance stage</span>
+        </div>
+
+      </div>
     </div>
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
 
-      <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.03);
-                  border:1px solid rgba(99,102,241,0.15);border-radius:10px;padding:9px 14px">
-        <span style="background:rgba(99,102,241,0.2);color:#818cf8;border-radius:6px;
-                     width:22px;height:22px;display:flex;align-items:center;justify-content:center;
-                     font-size:0.7rem;font-weight:900;flex-shrink:0">1</span>
-        <span style="color:#94a3b8;font-size:0.78rem;font-weight:500">Agent gets broken pipeline + error log</span>
+    <!-- GRPO Training snapshot -->
+    <div style="flex:1;min-width:220px;background:rgba(255,255,255,0.02);
+                border:1px solid rgba(99,102,241,0.12);border-radius:12px;padding:14px 16px">
+      <div style="font-size:0.65rem;font-weight:800;letter-spacing:.12em;color:#1e293b;margin-bottom:11px">GRPO TRAINING RESULTS</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#475569;font-size:0.75rem">First 5 avg reward</span>
+          <span style="color:#f87171;font-weight:800;font-size:0.82rem;font-variant-numeric:tabular-nums">0.25</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#475569;font-size:0.75rem">Last 5 avg reward</span>
+          <span style="color:#4ade80;font-weight:800;font-size:0.82rem;font-variant-numeric:tabular-nums">0.38</span>
+        </div>
+        <div style="height:1px;background:rgba(255,255,255,0.05);margin:2px 0"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#475569;font-size:0.75rem">Improvement</span>
+          <span style="color:#818cf8;font-weight:800;font-size:0.82rem;font-variant-numeric:tabular-nums">+52%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#475569;font-size:0.75rem">Training steps</span>
+          <span style="color:#a78bfa;font-weight:800;font-size:0.82rem;font-variant-numeric:tabular-nums">25</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#475569;font-size:0.75rem">Model</span>
+          <span style="color:#d8b4fe;font-weight:700;font-size:0.72rem">Llama 3.1 8B</span>
+        </div>
       </div>
-
-      <div style="color:#1e293b;font-size:1.1rem;font-weight:300">›</div>
-
-      <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.03);
-                  border:1px solid rgba(139,92,246,0.15);border-radius:10px;padding:9px 14px">
-        <span style="background:rgba(139,92,246,0.2);color:#a78bfa;border-radius:6px;
-                     width:22px;height:22px;display:flex;align-items:center;justify-content:center;
-                     font-size:0.7rem;font-weight:900;flex-shrink:0">2</span>
-        <span style="color:#94a3b8;font-size:0.78rem;font-weight:500">Calls inspect · edit · run · query</span>
-      </div>
-
-      <div style="color:#1e293b;font-size:1.1rem;font-weight:300">›</div>
-
-      <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.03);
-                  border:1px solid rgba(217,70,239,0.15);border-radius:10px;padding:9px 14px">
-        <span style="background:rgba(217,70,239,0.2);color:#e879f9;border-radius:6px;
-                     width:22px;height:22px;display:flex;align-items:center;justify-content:center;
-                     font-size:0.7rem;font-weight:900;flex-shrink:0">3</span>
-        <span style="color:#94a3b8;font-size:0.78rem;font-weight:500">Fix runs in isolated Python sandbox</span>
-      </div>
-
-      <div style="color:#1e293b;font-size:1.1rem;font-weight:300">›</div>
-
-      <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.03);
-                  border:1px solid rgba(34,197,94,0.15);border-radius:10px;padding:9px 14px">
-        <span style="background:rgba(34,197,94,0.2);color:#4ade80;border-radius:6px;
-                     width:22px;height:22px;display:flex;align-items:center;justify-content:center;
-                     font-size:0.7rem;font-weight:900;flex-shrink:0">4</span>
-        <span style="color:#94a3b8;font-size:0.78rem;font-weight:500">Grader scores → advance to next stage</span>
-      </div>
-
     </div>
+
   </div>
 </div>
 """
 
 DOCS_HTML = """
-<div style="background:#060b12;border:1px solid rgba(99,102,241,0.15);border-radius:14px;
-            padding:28px 32px;color:#cbd5e1;line-height:1.7;font-size:0.88rem;
-            font-family:'Inter',sans-serif">
+<div style="background:linear-gradient(160deg,#050a12,#070d1a);border:1px solid rgba(99,102,241,0.14);
+            border-radius:16px;padding:32px 36px;color:#cbd5e1;line-height:1.7;font-size:0.88rem;
+            font-family:'Inter',sans-serif;animation:fadeInUp 0.5s ease both">
 
-  <h3 style="color:#e2e8f0;margin:0 0 6px;font-size:1.1rem;font-weight:800">🔌 API Quick Start</h3>
-  <p style="color:#475569;font-size:0.8rem;margin-bottom:16px">
-    Base URL: <code style="background:#0d1520;color:#818cf8;padding:2px 8px;border-radius:5px;
-    font-family:'JetBrains Mono',monospace;font-size:0.78rem;border:1px solid rgba(99,102,241,0.2)">
-    https://CoBeDigger-DataEngEnv.hf.space</code>
-  </p>
+  <!-- Header -->
+  <div style="margin-bottom:24px">
+    <div style="font-size:0.65rem;font-weight:800;letter-spacing:.12em;color:#1e293b;margin-bottom:8px">DOCUMENTATION</div>
+    <h2 style="font-size:1.4rem;font-weight:900;color:#e2e8f0;letter-spacing:-.5px;margin-bottom:6px">API Reference</h2>
+    <p style="color:#475569;font-size:0.82rem">
+      Base URL:
+      <code style="background:#04090f;color:#818cf8;padding:3px 10px;border-radius:6px;
+        font-family:'JetBrains Mono',monospace;font-size:0.78rem;border:1px solid rgba(99,102,241,0.18)">
+        https://CoBeDigger-DataEngEnv.hf.space
+      </code>
+    </p>
+  </div>
 
-  <pre style="background:#030609;border:1px solid rgba(99,102,241,0.1);border-radius:10px;
-              padding:16px 20px;overflow-x:auto;margin-bottom:24px"><code style="color:#86efac;
-              font-family:'JetBrains Mono',monospace;font-size:0.8rem;line-height:1.7">import requests
+  <!-- Quick start -->
+  <div style="margin-bottom:28px">
+    <div style="font-size:0.72rem;font-weight:800;letter-spacing:.08em;color:#475569;margin-bottom:10px">QUICK START</div>
+    <pre style="background:#020609;border:1px solid rgba(99,102,241,0.1);border-radius:11px;
+                padding:18px 22px;overflow-x:auto"><code style="color:#86efac;
+                font-family:'JetBrains Mono',monospace;font-size:0.79rem;line-height:1.75">import requests
 
 BASE = "https://CoBeDigger-DataEngEnv.hf.space"
 
-# Reset — starts a fresh episode at Stage 1
+# 1. Start a fresh episode
 obs = requests.post(f"{BASE}/reset").json()
 
-# Take a step — any of the 5 actions
+# 2. Take actions in a loop
 result = requests.post(f"{BASE}/step", json={
     "action_type": "edit_script",
     "payload": {"old": "age_years", "new": "age"}
 }).json()
-# result["reward"]["score"]  →  float [0, 1]
+reward = result["reward"]["score"]   # float in [0, 1]
 
-# Check pipeline progress
+# 3. Check pipeline progress
 status = requests.get(f"{BASE}/pipeline_status").json()
 # status["stages_completed"]  →  [1, 2, ...]
 # status["episode_score"]     →  float [0, 1]</code></pre>
+  </div>
 
-  <h3 style="color:#e2e8f0;font-size:1rem;font-weight:800;margin-bottom:12px">🎮 Available Actions</h3>
-  <div style="display:grid;gap:8px;margin-bottom:24px">
-    <div style="display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:center;
-                background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);
-                border-radius:8px;padding:10px 14px">
-      <code style="color:#818cf8;font-family:'JetBrains Mono',monospace;font-size:0.78rem">inspect_data</code>
-      <span style="color:#64748b;font-size:0.82rem">View dataset shape, columns, null counts, 5-row sample</span>
-    </div>
-    <div style="display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:center;
-                background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);
-                border-radius:8px;padding:10px 14px">
-      <code style="color:#818cf8;font-family:'JetBrains Mono',monospace;font-size:0.78rem">run_script</code>
-      <span style="color:#64748b;font-size:0.82rem">Execute the current pipeline in an isolated subprocess (10s timeout)</span>
-    </div>
-    <div style="display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:center;
-                background:rgba(99,102,241,0.04);border:1px solid rgba(99,102,241,0.12);
-                border-radius:8px;padding:10px 14px">
-      <code style="color:#a5b4fc;font-family:'JetBrains Mono',monospace;font-size:0.78rem">edit_script</code>
-      <span style="color:#64748b;font-size:0.82rem">
-        Patch the script. Use <code style="color:#818cf8;background:#0d1520;padding:1px 5px;border-radius:3px;font-size:0.75rem">{"old":"...","new":"..."}</code>
-        or full replacement <code style="color:#818cf8;background:#0d1520;padding:1px 5px;border-radius:3px;font-size:0.75rem">{"script":"..."}</code>
-      </span>
-    </div>
-    <div style="display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:center;
-                background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);
-                border-radius:8px;padding:10px 14px">
-      <code style="color:#818cf8;font-family:'JetBrains Mono',monospace;font-size:0.78rem">query_actor</code>
-      <span style="color:#64748b;font-size:0.82rem">Ask the MLOps Bot / Code Reviewer for targeted feedback</span>
-    </div>
-    <div style="display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:center;
-                background:rgba(34,197,94,0.03);border:1px solid rgba(34,197,94,0.1);
-                border-radius:8px;padding:10px 14px">
-      <code style="color:#4ade80;font-family:'JetBrains Mono',monospace;font-size:0.78rem">submit</code>
-      <span style="color:#64748b;font-size:0.82rem">Grade the current fix → advance stage if score ≥ 0.7</span>
+  <!-- Actions -->
+  <div style="margin-bottom:28px">
+    <div style="font-size:0.72rem;font-weight:800;letter-spacing:.08em;color:#475569;margin-bottom:12px">AVAILABLE ACTIONS</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+
+      <div style="display:grid;grid-template-columns:170px 1fr;gap:14px;align-items:center;
+                  background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);
+                  border-radius:9px;padding:11px 15px">
+        <code style="color:#818cf8;font-family:'JetBrains Mono',monospace;font-size:0.76rem;font-weight:600">inspect_data</code>
+        <span style="color:#475569;font-size:0.8rem">View dataset shape, columns, null counts, sample rows, and numeric stats</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 1fr;gap:14px;align-items:center;
+                  background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);
+                  border-radius:9px;padding:11px 15px">
+        <code style="color:#818cf8;font-family:'JetBrains Mono',monospace;font-size:0.76rem;font-weight:600">run_script</code>
+        <span style="color:#475569;font-size:0.8rem">Execute the current pipeline in an isolated subprocess — 10s timeout</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 1fr;gap:14px;align-items:center;
+                  background:rgba(99,102,241,0.04);border:1px solid rgba(99,102,241,0.12);
+                  border-radius:9px;padding:11px 15px">
+        <code style="color:#a5b4fc;font-family:'JetBrains Mono',monospace;font-size:0.76rem;font-weight:600">edit_script</code>
+        <span style="color:#475569;font-size:0.8rem">
+          Patch the script. Supports
+          <code style="color:#818cf8;background:#04090f;padding:1px 6px;border-radius:4px;font-size:0.73rem">{"old":"…","new":"…"}</code>
+          or full replacement
+          <code style="color:#818cf8;background:#04090f;padding:1px 6px;border-radius:4px;font-size:0.73rem">{"script":"…"}</code>
+        </span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 1fr;gap:14px;align-items:center;
+                  background:rgba(245,158,11,0.03);border:1px solid rgba(245,158,11,0.1);
+                  border-radius:9px;padding:11px 15px">
+        <code style="color:#fbbf24;font-family:'JetBrains Mono',monospace;font-size:0.76rem;font-weight:600">query_actor</code>
+        <span style="color:#475569;font-size:0.8rem">Ask the MLOps Bot / Code Reviewer for targeted diagnostic feedback</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:170px 1fr;gap:14px;align-items:center;
+                  background:rgba(34,197,94,0.03);border:1px solid rgba(34,197,94,0.1);
+                  border-radius:9px;padding:11px 15px">
+        <code style="color:#4ade80;font-family:'JetBrains Mono',monospace;font-size:0.76rem;font-weight:600">submit</code>
+        <span style="color:#475569;font-size:0.8rem">Grade the current fix → advance stage if score ≥ 0.70, else stay and retry</span>
+      </div>
+
     </div>
   </div>
 
-  <h3 style="color:#e2e8f0;font-size:1rem;font-weight:800;margin-bottom:12px">🏗️ The 4 Stages</h3>
-  <div style="display:grid;gap:8px">
-    <div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.15);
-                border-radius:10px;padding:14px 18px">
-      <div style="color:#a5b4fc;font-weight:700;margin-bottom:4px">Stage 1 · Data Repair</div>
-      <div style="color:#475569;font-size:0.82rem">Column <code style="color:#818cf8;background:#0d1520;padding:1px 5px;border-radius:3px;font-size:0.75rem">age_years</code> must be renamed to <code style="color:#818cf8;background:#0d1520;padding:1px 5px;border-radius:3px;font-size:0.75rem">age</code> · NaN rows must be dropped before scaling</div>
-    </div>
-    <div style="background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.15);
-                border-radius:10px;padding:14px 18px">
-      <div style="color:#c4b5fd;font-weight:700;margin-bottom:4px">Stage 2 · Training Monitor</div>
-      <div style="color:#475569;font-size:0.82rem">MLP loss is NaN because there is no <code style="color:#a78bfa;background:#0d1520;padding:1px 5px;border-radius:3px;font-size:0.75rem">StandardScaler</code> — add normalisation fitted only on X_train</div>
-    </div>
-    <div style="background:rgba(217,70,239,0.04);border:1px solid rgba(217,70,239,0.12);
-                border-radius:10px;padding:14px 18px">
-      <div style="color:#f0abfc;font-weight:700;margin-bottom:4px">Stage 3 · Eval Validation</div>
-      <div style="color:#475569;font-size:0.82rem"><code style="color:#e879f9;background:#0d1520;padding:1px 5px;border-radius:3px;font-size:0.75rem">scaler.fit()</code> called on all data before split → data leakage · move it to after train_test_split</div>
-    </div>
-    <div style="background:rgba(34,197,94,0.03);border:1px solid rgba(34,197,94,0.12);
-                border-radius:10px;padding:14px 18px">
-      <div style="color:#86efac;font-weight:700;margin-bottom:4px">Stage 4 · Deploy Gate</div>
-      <div style="color:#475569;font-size:0.82rem">Fairness gap too high — add <code style="color:#4ade80;background:#0d1520;padding:1px 5px;border-radius:3px;font-size:0.75rem">class_weight='balanced'</code> to LogisticRegression and use stratified split</div>
+  <!-- Stages -->
+  <div>
+    <div style="font-size:0.72rem;font-weight:800;letter-spacing:.08em;color:#475569;margin-bottom:12px">THE 4 STAGES</div>
+    <div style="display:grid;gap:9px">
+
+      <div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.15);
+                  border-radius:11px;padding:15px 19px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);
+          font-size:1.5rem;opacity:0.15">🔧</div>
+        <div style="color:#a5b4fc;font-weight:800;font-size:0.85rem;margin-bottom:5px">Stage 1 · Data Repair</div>
+        <div style="color:#334155;font-size:0.8rem;line-height:1.6">
+          Column <code style="color:#818cf8;background:#04090f;padding:1px 6px;border-radius:4px;font-size:0.73rem">age_years</code>
+          must be renamed to <code style="color:#818cf8;background:#04090f;padding:1px 6px;border-radius:4px;font-size:0.73rem">age</code>
+          · NaN rows must be dropped before scaling
+        </div>
+      </div>
+
+      <div style="background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.15);
+                  border-radius:11px;padding:15px 19px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);
+          font-size:1.5rem;opacity:0.15">📈</div>
+        <div style="color:#c4b5fd;font-weight:800;font-size:0.85rem;margin-bottom:5px">Stage 2 · Training Monitor</div>
+        <div style="color:#334155;font-size:0.8rem;line-height:1.6">
+          MLP loss is NaN because there is no
+          <code style="color:#a78bfa;background:#04090f;padding:1px 6px;border-radius:4px;font-size:0.73rem">StandardScaler</code>
+          — add normalisation fitted only on X_train
+        </div>
+      </div>
+
+      <div style="background:rgba(217,70,239,0.04);border:1px solid rgba(217,70,239,0.13);
+                  border-radius:11px;padding:15px 19px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);
+          font-size:1.5rem;opacity:0.15">🔍</div>
+        <div style="color:#f0abfc;font-weight:800;font-size:0.85rem;margin-bottom:5px">Stage 3 · Eval Validation</div>
+        <div style="color:#334155;font-size:0.8rem;line-height:1.6">
+          <code style="color:#e879f9;background:#04090f;padding:1px 6px;border-radius:4px;font-size:0.73rem">scaler.fit()</code>
+          runs on all data before split → data leakage → suspiciously high accuracy is a lie
+        </div>
+      </div>
+
+      <div style="background:rgba(34,197,94,0.03);border:1px solid rgba(34,197,94,0.12);
+                  border-radius:11px;padding:15px 19px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);
+          font-size:1.5rem;opacity:0.15">🚀</div>
+        <div style="color:#86efac;font-weight:800;font-size:0.85rem;margin-bottom:5px">Stage 4 · Deploy Gate</div>
+        <div style="color:#334155;font-size:0.8rem;line-height:1.6">
+          Fairness gap too high — add
+          <code style="color:#4ade80;background:#04090f;padding:1px 6px;border-radius:4px;font-size:0.73rem">class_weight='balanced'</code>
+          to LogisticRegression and use stratified split
+        </div>
+      </div>
+
     </div>
   </div>
+
 </div>
 """
 
@@ -627,12 +760,25 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv", css=CUSTOM_CSS) as demo:
             with gr.Row():
 
                 # ── Left: Pipeline tracker ────────────────────────────────────
-                with gr.Column(scale=1, min_width=260):
+                with gr.Column(scale=1, min_width=265):
                     stage_display = gr.HTML(value=build_stage_html({}))
-                    refresh_btn = gr.Button("⟳  Refresh", elem_classes="btn-reset", size="sm")
+                    refresh_btn = gr.Button("⟳  Refresh Status", elem_classes="btn-reset", size="sm")
 
                 # ── Right: Controls ───────────────────────────────────────────
                 with gr.Column(scale=2):
+
+                    gr.HTML("""
+<div style="background:linear-gradient(135deg,rgba(99,102,241,0.06),rgba(139,92,246,0.03));
+            border:1px solid rgba(99,102,241,0.14);border-radius:11px;padding:14px 18px;
+            margin-bottom:2px;display:flex;align-items:center;gap:12px">
+  <div style="font-size:1.3rem">🎮</div>
+  <div>
+    <div style="font-size:0.82rem;font-weight:800;color:#e2e8f0;margin-bottom:2px">Interactive Playground</div>
+    <div style="font-size:0.75rem;color:#334155;line-height:1.5">
+      Manually execute any action against the live environment. Watch the pipeline tracker update in real time.
+    </div>
+  </div>
+</div>""")
 
                     with gr.Row():
                         action_dd = gr.Dropdown(
@@ -645,13 +791,13 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv", css=CUSTOM_CSS) as demo:
 
                     with gr.Row():
                         old_text = gr.Textbox(
-                            label="OLD CODE  (edit_script)",
+                            label="OLD CODE  (edit_script only)",
                             lines=2,
                             placeholder="Exact text to find in the script…",
                             elem_classes="code-box"
                         )
                         new_text = gr.Textbox(
-                            label="NEW CODE  (edit_script)",
+                            label="NEW CODE  (edit_script only)",
                             lines=2,
                             placeholder="Replacement text…",
                             elem_classes="code-box"
@@ -680,37 +826,47 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv", css=CUSTOM_CSS) as demo:
         with gr.Tab("🤖  Live LLM Agent"):
 
             gr.HTML("""
-<div style="background:linear-gradient(135deg,rgba(99,102,241,0.07),rgba(139,92,246,0.04));
-            border:1px solid rgba(99,102,241,0.18);border-radius:14px;
-            padding:22px 28px;margin-bottom:16px;position:relative;overflow:hidden">
-  <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;
-    background:radial-gradient(circle,rgba(99,102,241,0.12) 0%,transparent 65%);
+<div style="background:linear-gradient(145deg,rgba(6,10,22,0.95),rgba(10,8,24,0.95));
+            border:1px solid rgba(99,102,241,0.16);border-radius:14px;
+            padding:24px 30px;margin-bottom:14px;position:relative;overflow:hidden">
+  <div style="position:absolute;top:-50px;right:-50px;width:250px;height:250px;
+    background:radial-gradient(circle,rgba(99,102,241,0.1) 0%,transparent 65%);
+    border-radius:50%;pointer-events:none;animation:glow-pulse 5s ease-in-out infinite"></div>
+  <div style="position:absolute;bottom:-40px;left:30%;width:200px;height:200px;
+    background:radial-gradient(circle,rgba(139,92,246,0.07) 0%,transparent 65%);
     border-radius:50%;pointer-events:none"></div>
-  <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
-    <div style="flex:1;min-width:260px">
-      <div style="font-size:1rem;font-weight:800;color:#e2e8f0;margin-bottom:6px">
-        Watch Groq Llama 3.1 8B Debug 4 Broken ML Pipelines
+
+  <div style="display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;position:relative">
+    <div style="flex:1;min-width:280px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="width:7px;height:7px;border-radius:50%;background:#4ade80;
+          display:inline-block;animation:glow-pulse 1.5s infinite;
+          box-shadow:0 0 8px rgba(74,222,128,0.6)"></span>
+        <div style="font-size:1rem;font-weight:900;color:#e2e8f0;letter-spacing:-.2px">
+          Watch Groq Llama 3.1 8B Debug 4 Broken ML Pipelines
+        </div>
       </div>
-      <div style="color:#64748b;font-size:0.84rem;line-height:1.65;max-width:600px">
+      <div style="color:#475569;font-size:0.83rem;line-height:1.7;max-width:620px">
         The model receives error logs and the broken script, reasons about root causes,
         and generates fix actions entirely from its own intelligence —
-        <strong style="color:#94a3b8">no rules, no hardcoded fixes, no shortcuts</strong>.
+        <strong style="color:#64748b">no rules, no hardcoded fixes, no shortcuts</strong>.
         Watch it navigate all 4 stages in real time.
       </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);
-                   color:#86efac;padding:5px 14px;border-radius:999px;font-size:0.72rem;font-weight:700;
-                   display:flex;align-items:center;gap:6px">
-        <span style="width:6px;height:6px;border-radius:50%;background:#4ade80;animation:glow-pulse 1.5s infinite;display:inline-block"></span>
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:170px">
+      <span style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.22);
+                   color:#86efac;padding:6px 16px;border-radius:999px;font-size:0.7rem;font-weight:800;
+                   display:flex;align-items:center;gap:8px;letter-spacing:.04em">
+        <span style="width:6px;height:6px;border-radius:50%;background:#4ade80;
+          animation:glow-pulse 1.5s infinite;display:inline-block;flex-shrink:0"></span>
         LIVE REASONING
       </span>
-      <span style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.25);
-                   color:#a5b4fc;padding:5px 14px;border-radius:999px;font-size:0.72rem;font-weight:700">
+      <span style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.22);
+                   color:#a5b4fc;padding:6px 16px;border-radius:999px;font-size:0.7rem;font-weight:800;letter-spacing:.04em">
         🔒 ISOLATED SANDBOX
       </span>
-      <span style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);
-                   color:#fbbf24;padding:5px 14px;border-radius:999px;font-size:0.72rem;font-weight:700">
+      <span style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.18);
+                   color:#fbbf24;padding:6px 16px;border-radius:999px;font-size:0.7rem;font-weight:800;letter-spacing:.04em">
         📊 DETERMINISTIC GRADING
       </span>
     </div>
@@ -739,7 +895,6 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv", css=CUSTOM_CSS) as demo:
             )
             live_scorecard = gr.HTML("")
 
-            # ── LLM agent logic (via HTTP to FastAPI) ─────────────────────────
             ACTION_ICONS  = {"inspect_data":"🔍","check_schema":"📋","run_script":"▶ ","edit_script":"✏ ","query_actor":"🤖","submit":"📤"}
             STAGE_LABELS  = {1:"Data Repair",2:"Training Monitor",3:"Eval Validation",4:"Deploy Gate"}
 
@@ -952,35 +1107,39 @@ CRITICAL RULES:
                 steps       = steps_m.group(1) if steps_m else "—"
                 pct         = int(score * 100)
                 color       = "#4ade80" if pct >= 75 else "#fbbf24" if pct >= 25 else "#f87171"
-                bar         = f'<div style="background:rgba(255,255,255,0.06);border-radius:999px;height:8px;overflow:hidden;margin:10px 0 4px"><div style="width:{pct}%;height:100%;border-radius:999px;background:{color};box-shadow:0 0 10px {color}60"></div></div>'
+                bar         = f'<div style="background:rgba(255,255,255,0.05);border-radius:999px;height:7px;overflow:hidden;margin:10px 0 4px"><div style="width:{pct}%;height:100%;border-radius:999px;background:{color};box-shadow:0 0 12px {color}60;transition:width 1s ease"></div></div>'
                 n_stages    = len([x for x in completed.replace("[","").replace("]","").split(",") if x.strip()])
                 card = f"""
-<div style="background:linear-gradient(135deg,#040810,#080d1a);
-            border:1px solid rgba(99,102,241,0.25);border-radius:14px;
-            padding:22px 26px;margin-top:12px;position:relative;overflow:hidden">
-  <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;
-    background:radial-gradient(circle,{color}18 0%,transparent 65%);border-radius:50%;pointer-events:none"></div>
-  <div style="font-size:0.68rem;font-weight:800;letter-spacing:.1em;color:#334155;margin-bottom:14px">EPISODE RESULT</div>
-  <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
-    <div style="min-width:100px">
-      <div style="font-size:3.5rem;font-weight:900;color:{color};line-height:1;text-shadow:0 0 30px {color}60">{pct}%</div>
+<div style="background:linear-gradient(145deg,#030810,#070c1a);
+            border:1px solid rgba(99,102,241,0.22);border-radius:15px;
+            padding:24px 28px;margin-top:14px;position:relative;overflow:hidden;
+            animation:fadeInUp 0.5s ease both">
+  <div style="position:absolute;top:-60px;right:-60px;width:220px;height:220px;
+    background:radial-gradient(circle,{color}14 0%,transparent 65%);border-radius:50%;pointer-events:none"></div>
+  <div style="position:absolute;bottom:-40px;left:10%;width:180px;height:180px;
+    background:radial-gradient(circle,rgba(99,102,241,0.06) 0%,transparent 65%);border-radius:50%;pointer-events:none"></div>
+  <div style="font-size:0.65rem;font-weight:800;letter-spacing:.12em;color:#1e293b;margin-bottom:16px;position:relative">EPISODE RESULT</div>
+  <div style="display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;position:relative">
+    <div style="min-width:110px">
+      <div style="font-size:4rem;font-weight:900;color:{color};line-height:1;
+        text-shadow:0 0 40px {color}50;font-variant-numeric:tabular-nums">{pct}%</div>
       {bar}
-      <div style="color:#334155;font-size:0.65rem;font-weight:800;letter-spacing:.06em">EPISODE SCORE</div>
+      <div style="color:#1e293b;font-size:0.62rem;font-weight:800;letter-spacing:.07em">EPISODE SCORE</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;min-width:200px">
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
-                  border-radius:10px;padding:12px 14px">
-        <div style="font-size:1.6rem;font-weight:900;color:#818cf8;line-height:1">{n_stages}/4</div>
-        <div style="color:#334155;font-size:0.65rem;font-weight:800;letter-spacing:.05em;margin-top:4px">STAGES DONE</div>
+      <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.055);
+                  border-radius:10px;padding:13px 14px">
+        <div style="font-size:1.8rem;font-weight:900;color:#818cf8;line-height:1;font-variant-numeric:tabular-nums">{n_stages}/4</div>
+        <div style="color:#1e293b;font-size:0.62rem;font-weight:800;letter-spacing:.05em;margin-top:5px">STAGES DONE</div>
       </div>
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
-                  border-radius:10px;padding:12px 14px">
-        <div style="font-size:1.6rem;font-weight:900;color:#a78bfa;line-height:1">{steps}</div>
-        <div style="color:#334155;font-size:0.65rem;font-weight:800;letter-spacing:.05em;margin-top:4px">TOTAL STEPS</div>
+      <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.055);
+                  border-radius:10px;padding:13px 14px">
+        <div style="font-size:1.8rem;font-weight:900;color:#a78bfa;line-height:1;font-variant-numeric:tabular-nums">{steps}</div>
+        <div style="color:#1e293b;font-size:0.62rem;font-weight:800;letter-spacing:.05em;margin-top:5px">TOTAL STEPS</div>
       </div>
       <div style="grid-column:1/-1;background:rgba(99,102,241,0.04);border:1px solid rgba(99,102,241,0.1);
                   border-radius:10px;padding:12px 14px">
-        <div style="color:#64748b;font-size:0.78rem;line-height:1.6">
+        <div style="color:#475569;font-size:0.78rem;line-height:1.6">
           <strong style="color:#818cf8">Groq Llama 3.1 8B</strong> reasoned through each stage from first principles —
           no rules, no hardcoded fixes, pure model intelligence.
         </div>
@@ -998,31 +1157,33 @@ CRITICAL RULES:
         with gr.Tab("📊  Baseline vs LLM Agent"):
 
             gr.HTML("""
-<div style="background:linear-gradient(135deg,#040810,#09101e);
-            border:1px solid rgba(99,102,241,0.18);border-radius:14px;
-            padding:22px 28px;margin-bottom:16px">
-  <div style="font-size:1rem;font-weight:800;color:#e2e8f0;margin-bottom:4px">
-    📊  Head-to-Head · Rule-Based Baseline vs LLM Agent
+<div style="background:linear-gradient(145deg,#040810,#08101e);
+            border:1px solid rgba(99,102,241,0.16);border-radius:14px;
+            padding:24px 30px;margin-bottom:16px;position:relative;overflow:hidden">
+  <div style="position:absolute;top:-40px;right:10%;width:220px;height:220px;
+    background:radial-gradient(circle,rgba(99,102,241,0.07) 0%,transparent 65%);
+    border-radius:50%;pointer-events:none"></div>
+  <div style="font-size:1.05rem;font-weight:900;color:#e2e8f0;margin-bottom:5px;letter-spacing:-.2px;position:relative">
+    Head-to-Head · Rule-Based Baseline vs LLM Agent
   </div>
-  <div style="color:#475569;font-size:0.82rem;margin-bottom:16px">
-    Each agent runs on its own <strong style="color:#64748b">private isolated environment</strong> with zero shared state.
-    Run both and compare the results side-by-side.
+  <div style="color:#334155;font-size:0.82rem;margin-bottom:18px;position:relative">
+    Each agent runs on its own <strong style="color:#475569">private isolated environment</strong> — zero shared state, zero interference.
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;position:relative">
     <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);
-                border-radius:10px;padding:14px 16px">
-      <div style="font-size:0.72rem;font-weight:800;letter-spacing:.06em;color:#475569;margin-bottom:6px">🔧  RULE-BASED BASELINE</div>
-      <div style="color:#334155;font-size:0.8rem;line-height:1.6">
-        Applies a hardcoded fix sequence to each stage. No reasoning — it just follows predefined steps.
+                border-radius:10px;padding:14px 18px">
+      <div style="font-size:0.7rem;font-weight:800;letter-spacing:.07em;color:#475569;margin-bottom:7px">🔧 RULE-BASED BASELINE</div>
+      <div style="color:#334155;font-size:0.8rem;line-height:1.65">
+        Applies a hardcoded fix sequence to each stage. No reasoning — follows predefined steps.
         Fast and predictable but brittle if the environment deviates.
       </div>
     </div>
-    <div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.2);
-                border-radius:10px;padding:14px 16px">
-      <div style="font-size:0.72rem;font-weight:800;letter-spacing:.06em;color:#6366f1;margin-bottom:6px">🤖  LLM AGENT (Groq Llama 3.1 8B)</div>
-      <div style="color:#334155;font-size:0.8rem;line-height:1.6">
+    <div style="background:rgba(99,102,241,0.04);border:1px solid rgba(99,102,241,0.18);
+                border-radius:10px;padding:14px 18px">
+      <div style="font-size:0.7rem;font-weight:800;letter-spacing:.07em;color:#6366f1;margin-bottom:7px">🤖 LLM AGENT (Groq Llama 3.1 8B)</div>
+      <div style="color:#334155;font-size:0.8rem;line-height:1.65">
         Reads the actual error log and current script, then reasons about the root cause.
-        Every action is generated from model intelligence — no hardcoding whatsoever.
+        Every action is generated from model intelligence — zero hardcoding.
       </div>
     </div>
   </div>
@@ -1030,7 +1191,7 @@ CRITICAL RULES:
 
             with gr.Row():
                 with gr.Column():
-                    gr.HTML('<div style="font-size:0.72rem;font-weight:800;letter-spacing:.06em;color:#475569;padding:4px 0 8px">🔧  RULE-BASED BASELINE</div>')
+                    gr.HTML('<div style="font-size:0.68rem;font-weight:800;letter-spacing:.07em;color:#475569;padding:4px 0 8px">🔧  RULE-BASED BASELINE</div>')
                     run_baseline_cmp_btn = gr.Button("▶  Run Baseline", elem_classes="btn-reset")
                     baseline_cmp_log = gr.Textbox(
                         label="BASELINE LOG", lines=28, interactive=False,
@@ -1040,7 +1201,7 @@ CRITICAL RULES:
                     baseline_scorecard = gr.HTML("")
 
                 with gr.Column():
-                    gr.HTML('<div style="font-size:0.72rem;font-weight:800;letter-spacing:.06em;color:#6366f1;padding:4px 0 8px">🤖  LLM AGENT</div>')
+                    gr.HTML('<div style="font-size:0.68rem;font-weight:800;letter-spacing:.07em;color:#6366f1;padding:4px 0 8px">🤖  LLM AGENT</div>')
                     run_llm_cmp_btn = gr.Button("▶  Run LLM Agent", elem_classes="btn-primary")
                     llm_cmp_log = gr.Textbox(
                         label="LLM AGENT LOG", lines=28, interactive=False,
@@ -1130,29 +1291,31 @@ CRITICAL RULES:
                 pct      = int(score * 100)
                 color    = "#4ade80" if pct >= 75 else "#fbbf24" if pct >= 25 else "#f87171"
                 n_stages = len([x for x in stages.replace("[","").replace("]","").split(",") if x.strip()])
-                bar      = f'<div style="background:rgba(255,255,255,0.05);border-radius:999px;height:6px;overflow:hidden;margin:8px 0"><div style="width:{pct}%;height:100%;border-radius:999px;background:{color};box-shadow:0 0 8px {color}60"></div></div>'
+                bar      = f'<div style="background:rgba(255,255,255,0.04);border-radius:999px;height:6px;overflow:hidden;margin:8px 0"><div style="width:{pct}%;height:100%;border-radius:999px;background:{color};box-shadow:0 0 10px {color}55"></div></div>'
                 return f"""
-<div style="background:linear-gradient(135deg,#040810,#07101a);
-            border:1px solid {accent}30;border-radius:12px;
-            padding:18px 20px;margin-top:10px;position:relative;overflow:hidden">
-  <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;
-    background:radial-gradient(circle,{color}15 0%,transparent 65%);border-radius:50%;pointer-events:none"></div>
-  <div style="font-size:0.65rem;font-weight:800;letter-spacing:.1em;color:#1e293b;margin-bottom:10px">RESULT</div>
-  <div style="display:flex;align-items:flex-start;gap:16px">
-    <div>
-      <div style="font-size:2.8rem;font-weight:900;color:{color};line-height:1;text-shadow:0 0 20px {color}50">{pct}%</div>
+<div style="background:linear-gradient(145deg,#030810,#06101a);
+            border:1px solid {accent}28;border-radius:12px;
+            padding:18px 22px;margin-top:12px;position:relative;overflow:hidden;
+            animation:fadeInUp 0.4s ease both">
+  <div style="position:absolute;top:-35px;right:-35px;width:130px;height:130px;
+    background:radial-gradient(circle,{color}12 0%,transparent 65%);border-radius:50%;pointer-events:none"></div>
+  <div style="font-size:0.62rem;font-weight:800;letter-spacing:.12em;color:#1e293b;margin-bottom:12px">RESULT</div>
+  <div style="display:flex;align-items:flex-start;gap:18px">
+    <div style="min-width:90px">
+      <div style="font-size:3rem;font-weight:900;color:{color};line-height:1;
+        text-shadow:0 0 25px {color}45;font-variant-numeric:tabular-nums">{pct}%</div>
       {bar}
-      <div style="color:#1e293b;font-size:0.62rem;font-weight:800;letter-spacing:.05em">SCORE</div>
+      <div style="color:#1e293b;font-size:0.6rem;font-weight:800;letter-spacing:.06em">SCORE</div>
     </div>
     <div style="flex:1">
       <div style="display:flex;gap:8px;margin-bottom:10px">
-        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);
-                    border-radius:8px;padding:8px 12px;text-align:center;flex:1">
-          <div style="font-size:1.4rem;font-weight:800;color:{accent};line-height:1">{n_stages}/4</div>
-          <div style="font-size:0.6rem;color:#1e293b;font-weight:700;margin-top:2px;letter-spacing:.04em">STAGES</div>
+        <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05);
+                    border-radius:8px;padding:9px 12px;text-align:center;flex:1">
+          <div style="font-size:1.5rem;font-weight:900;color:{accent};line-height:1;font-variant-numeric:tabular-nums">{n_stages}/4</div>
+          <div style="font-size:0.6rem;color:#1e293b;font-weight:700;margin-top:3px;letter-spacing:.05em">STAGES</div>
         </div>
       </div>
-      <div style="color:#334155;font-size:0.76rem;line-height:1.5">
+      <div style="color:#334155;font-size:0.76rem;line-height:1.55">
         <strong style="color:{accent}">{label}</strong> · {description}
       </div>
     </div>
