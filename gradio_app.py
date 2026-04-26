@@ -348,6 +348,73 @@ body, .gradio-container {
 }
 label span { color: #64748b !important; font-size: 0.8rem !important; font-weight: 600 !important; }
 
+/* ── Hero stats ──────────────────────────────────────────── */
+.hero-stat {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(99,102,241,0.2);
+    border-radius: 12px;
+    padding: 14px 20px;
+    text-align: center;
+    min-width: 72px;
+}
+.hero-stat-num {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #818cf8;
+    line-height: 1;
+}
+.hero-stat-label {
+    font-size: 0.68rem;
+    color: #64748b;
+    font-weight: 600;
+    margin-top: 4px;
+    white-space: nowrap;
+}
+.how-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.how-num {
+    background: rgba(99,102,241,0.2);
+    color: #818cf8;
+    border-radius: 999px;
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 800; flex-shrink: 0;
+}
+.how-text { color: #94a3b8; font-size: 0.78rem; font-weight: 500; }
+.how-arrow { color: #334155; font-size: 1rem; padding: 0 4px; display: flex; align-items: center; }
+
+/* ── Score display ───────────────────────────────────────── */
+.score-display {
+    background: linear-gradient(135deg, #0d1117 0%, #0f1a2e 100%);
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 14px;
+    padding: 24px;
+    margin-top: 12px;
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+.score-card {
+    flex: 1;
+    min-width: 140px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+}
+.score-card-big { font-size: 2.5rem; font-weight: 900; line-height: 1; }
+.score-card-label { font-size: 0.72rem; color: #64748b; font-weight: 600; margin-top: 6px; }
+.score-card-sub { font-size: 0.78rem; color: #475569; margin-top: 4px; }
+
 /* ── Docs tab ────────────────────────────────────────────── */
 .doc-box {
     background: #0d1117;
@@ -377,17 +444,41 @@ label span { color: #64748b !important; font-size: 0.8rem !important; font-weigh
 
 HERO_HTML = """
 <div class="hero-banner">
-  <div class="hero-title">🛠️ <span>PipelineOps Arena</span></div>
-  <p class="hero-sub">
-    A 4-stage cascading RL environment where AI agents debug broken ML pipelines —
-    graded <strong style="color:#818cf8">deterministically</strong>, no LLM judge required.
-  </p>
-  <div class="hero-badges">
-    <span class="hbadge hb-blue">⚡ 4-Stage Cascade</span>
-    <span class="hbadge hb-green">✅ Deterministic Grading</span>
-    <span class="hbadge hb-amber">📊 Reward ∈ [0, 1]</span>
-    <span class="hbadge hb-purple">🤖 OpenEnv Compliant</span>
-    <span class="hbadge hb-rose">🦾 GRPO Fine-tuned</span>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:20px">
+    <div style="flex:1;min-width:260px">
+      <div class="hero-title">🛠️ <span>PipelineOps Arena</span></div>
+      <p class="hero-sub">
+        A <strong style="color:#818cf8">4-stage cascading RL environment</strong> where AI agents
+        autonomously debug broken ML pipelines — inspecting data, editing scripts, and verifying fixes
+        in a real Python sandbox. Graded <strong style="color:#86efac">deterministically</strong>,
+        no LLM judge required.
+      </p>
+      <div class="hero-badges">
+        <span class="hbadge hb-blue">⚡ 4-Stage Cascade</span>
+        <span class="hbadge hb-green">✅ Deterministic Grading</span>
+        <span class="hbadge hb-amber">📊 Reward ∈ [0, 1]</span>
+        <span class="hbadge hb-purple">🤖 OpenEnv Compliant</span>
+        <span class="hbadge hb-rose">🦾 GRPO Fine-tuned LLM</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+      <div class="hero-stat"><div class="hero-stat-num">4</div><div class="hero-stat-label">Pipeline Stages</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">5</div><div class="hero-stat-label">Agent Actions</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">60</div><div class="hero-stat-label">Max Steps</div></div>
+      <div class="hero-stat"><div class="hero-stat-num">1.0</div><div class="hero-stat-label">Max Score</div></div>
+    </div>
+  </div>
+  <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(99,102,241,0.15)">
+    <div style="font-size:0.8rem;color:#475569;font-weight:600;letter-spacing:.05em;margin-bottom:10px">HOW IT WORKS</div>
+    <div style="display:flex;gap:0;flex-wrap:wrap">
+      <div class="how-step"><span class="how-num">1</span><span class="how-text">Agent receives broken ML pipeline + error log</span></div>
+      <div class="how-arrow">→</div>
+      <div class="how-step"><span class="how-num">2</span><span class="how-text">Calls actions: inspect, edit, run, query</span></div>
+      <div class="how-arrow">→</div>
+      <div class="how-step"><span class="how-num">3</span><span class="how-text">Fixed script runs in isolated Python sandbox</span></div>
+      <div class="how-arrow">→</div>
+      <div class="how-step"><span class="how-num">4</span><span class="how-text">Grader scores fix → advance to next stage</span></div>
+    </div>
   </div>
 </div>
 """
@@ -600,9 +691,35 @@ with gr.Blocks(title="PipelineOps Arena — OpenEnv") as demo:
                 outputs=[stage_display]
             )
 
-        # ── BASELINE TAB ──────────────────────────────────────────────────────
-        with gr.Tab("🚀 Run Baseline"):
-            gr.Markdown("### Run the live LLM agent — Llama 3.1 reasons through each stage in real time")
+        # ── LLM AGENT TAB ─────────────────────────────────────────────────────
+        with gr.Tab("🤖 Live LLM Agent"):
+            gr.HTML("""
+<div style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.05));
+            border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:20px 24px;margin-bottom:16px">
+  <div style="font-size:1.1rem;font-weight:700;color:#e2e8f0;margin-bottom:6px">
+    🤖 Watch the LLM Agent Solve All 4 Stages
+  </div>
+  <div style="color:#94a3b8;font-size:0.88rem;line-height:1.6;max-width:660px">
+    <strong style="color:#a5b4fc">Groq Llama 3.1 8B</strong> receives error logs and the broken script,
+    reasons about the root cause, and generates fix actions entirely on its own —
+    no hardcoded scripts, no rule-based overrides.
+    Watch it inspect data, patch code, run the sandbox, and advance through all 4 stages.
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+    <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);
+                 color:#86efac;padding:3px 10px;border-radius:999px;font-size:0.75rem;font-weight:600">
+      ✅ Real-time reasoning
+    </span>
+    <span style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);
+                 color:#a5b4fc;padding:3px 10px;border-radius:999px;font-size:0.75rem;font-weight:600">
+      🔒 Isolated sandbox execution
+    </span>
+    <span style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);
+                 color:#fcd34d;padding:3px 10px;border-radius:999px;font-size:0.75rem;font-weight:600">
+      📊 Deterministic grading
+    </span>
+  </div>
+</div>""")
 
             run_btn = gr.Button("▶  Run LLM Agent (All 4 Stages)", elem_classes="btn-primary")
 
@@ -835,30 +952,104 @@ CRITICAL RULES:
                 except Exception as e:
                     yield emit(f"\n❌ Error during agent run: {e}")
 
-            run_btn.click(run_baseline_streaming, inputs=[], outputs=[live_output])
+            live_scorecard = gr.HTML("")
+
+            def run_llm_agent_with_score():
+                log_text = ""
+                for chunk in run_baseline_streaming():
+                    log_text = chunk
+                    yield chunk, ""
+                import re as _re
+                completed_m = _re.search(r"Stages completed\s*:\s*(\[.*?\])", log_text)
+                score_m = _re.search(r"Final score\s*:\s*([\d.]+)", log_text)
+                steps_m = _re.search(r"Total steps\s*:\s*(\d+)", log_text)
+                completed = completed_m.group(1) if completed_m else "[]"
+                score = float(score_m.group(1)) if score_m else 0.0
+                steps = steps_m.group(1) if steps_m else "—"
+                pct = int(score * 100)
+                color = "#22c55e" if pct >= 75 else "#f59e0b" if pct >= 25 else "#ef4444"
+                bar = f'<div style="background:rgba(255,255,255,0.06);border-radius:999px;height:8px;overflow:hidden;margin:8px 0"><div style="width:{pct}%;height:100%;border-radius:999px;background:{color}"></div></div>'
+                card = f"""<div style="background:linear-gradient(135deg,#0d1117,#0f1a2e);border:1px solid rgba(99,102,241,0.3);
+                           border-radius:14px;padding:20px 24px;margin-top:12px">
+                  <div style="font-size:0.85rem;font-weight:700;color:#64748b;letter-spacing:.05em;margin-bottom:14px">EPISODE RESULT</div>
+                  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+                    <div style="text-align:center">
+                      <div style="font-size:3rem;font-weight:900;color:{color};line-height:1">{pct}%</div>
+                      {bar}
+                      <div style="color:#64748b;font-size:0.72rem;font-weight:600">EPISODE SCORE</div>
+                    </div>
+                    <div style="flex:1;min-width:160px">
+                      <div style="color:#e2e8f0;font-size:0.88rem;margin-bottom:6px">
+                        <strong style="color:#94a3b8">Stages completed:</strong> {completed}
+                      </div>
+                      <div style="color:#e2e8f0;font-size:0.88rem;margin-bottom:6px">
+                        <strong style="color:#94a3b8">Total steps:</strong> {steps}
+                      </div>
+                      <div style="color:#64748b;font-size:0.78rem;line-height:1.6;margin-top:10px">
+                        Groq Llama 3.1 8B reasoned through each stage autonomously —
+                        inspecting data, patching scripts, and verifying fixes in a real Python sandbox.
+                      </div>
+                    </div>
+                  </div>
+                </div>"""
+                yield log_text, card
+
+            run_btn.click(run_llm_agent_with_score, inputs=[], outputs=[live_output, live_scorecard])
 
         # ── COMPARISON TAB ────────────────────────────────────────────────────
         with gr.Tab("📊 Baseline vs LLM Agent"):
-            gr.Markdown("""### Rule-Based Baseline vs LLM Agent
-Each agent runs on its **own private environment** — fully isolated, no shared state.
-- **Baseline**: Hardcoded scripted fixes — no reasoning, fails to generalise
-- **LLM Agent**: Groq Llama 3.1 8B reasoning dynamically from error logs and script state
-""")
+            gr.HTML("""
+<div style="background:linear-gradient(135deg,rgba(15,23,42,0.8),rgba(20,16,48,0.8));
+            border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:20px 24px;margin-bottom:16px">
+  <div style="font-size:1.1rem;font-weight:700;color:#e2e8f0;margin-bottom:8px">
+    📊 Head-to-Head: Rule-Based Baseline vs LLM Agent
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
+                border-radius:10px;padding:14px">
+      <div style="color:#94a3b8;font-size:0.78rem;font-weight:700;margin-bottom:6px">
+        🔧 RULE-BASED BASELINE
+      </div>
+      <div style="color:#64748b;font-size:0.8rem;line-height:1.6">
+        Hardcoded scripts — always applies the same predefined fix sequence.
+        Fast, but brittle. Fails if the environment varies even slightly.
+      </div>
+    </div>
+    <div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.25);
+                border-radius:10px;padding:14px">
+      <div style="color:#a5b4fc;font-size:0.78rem;font-weight:700;margin-bottom:6px">
+        🤖 LLM AGENT (Groq Llama 3.1 8B)
+      </div>
+      <div style="color:#64748b;font-size:0.8rem;line-height:1.6">
+        Reads the error log and current script, reasons about the root cause,
+        then generates targeted fixes — no rules, no hardcoding.
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:10px;color:#475569;font-size:0.77rem">
+    ⚡ Each agent runs on its own <strong style="color:#64748b">private isolated environment</strong> — zero shared state between runs.
+  </div>
+</div>""")
             with gr.Row():
                 with gr.Column():
-                    gr.Markdown("#### Rule-Based Baseline")
+                    gr.HTML("""<div style="color:#94a3b8;font-weight:700;font-size:0.9rem;padding:4px 0">
+                      🔧 Rule-Based Baseline</div>""")
                     run_baseline_cmp_btn = gr.Button("▶ Run Baseline Agent", elem_classes="btn-reset")
                     baseline_cmp_log = gr.Textbox(
                         label="Baseline Log", lines=28, interactive=False,
-                        placeholder="Click to run baseline agent…", elem_classes="code-box"
+                        placeholder="Click to run baseline agent…\n\nApplies fixed rule sequences — no reasoning.", elem_classes="code-box"
                     )
                 with gr.Column():
-                    gr.Markdown("#### LLM Agent (Groq Llama 3.1 8B)")
+                    gr.HTML("""<div style="color:#a5b4fc;font-weight:700;font-size:0.9rem;padding:4px 0">
+                      🤖 LLM Agent (Groq Llama 3.1 8B)</div>""")
                     run_llm_cmp_btn = gr.Button("▶ Run LLM Agent", elem_classes="btn-primary")
                     llm_cmp_log = gr.Textbox(
                         label="LLM Log", lines=28, interactive=False,
-                        placeholder="Click to run LLM agent…", elem_classes="code-box"
+                        placeholder="Click to run LLM agent…\n\nThe model reads error logs and reasons about each fix.", elem_classes="code-box"
                     )
+                    llm_scorecard = gr.HTML("")
+
+            baseline_scorecard = gr.HTML("")
 
             _ICONS = {"inspect_data":"🔍","run_script":"▶️ ","edit_script":"✏️ ","query_actor":"🤖","submit":"📤"}
 
@@ -1199,8 +1390,56 @@ WORKFLOW PER STAGE:
                 yield emit(f"  Episode score    : {_env.episode_score:.2f}")
                 yield emit(f"\n  {'✅' if _env.episode_score >= 0.75 else '⚠️' if _env.episode_score > 0 else '❌'} LLM Agent complete.")
 
-            run_baseline_cmp_btn.click(run_baseline_cmp, inputs=[], outputs=[baseline_cmp_log])
-            run_llm_cmp_btn.click(run_llm_cmp, inputs=[], outputs=[llm_cmp_log])
+            with gr.Row():
+                baseline_scorecard = gr.HTML("")
+                llm_scorecard = gr.HTML("")
+
+            def _make_scorecard(log_text, label, label_color, description):
+                import re as _re
+                score_m = _re.search(r"Episode score\s*:\s*([\d.]+)", log_text)
+                stages_m = _re.search(r"Stages completed\s*:\s*(\[.*?\])", log_text)
+                score = float(score_m.group(1)) if score_m else 0.0
+                stages = stages_m.group(1) if stages_m else "[]"
+                pct = int(score * 100)
+                color = "#22c55e" if pct >= 75 else "#f59e0b" if pct >= 25 else "#ef4444"
+                return f"""<div class="score-display">
+                  <div class="score-card">
+                    <div class="score-card-big" style="color:{color}">{pct}%</div>
+                    <div class="score-card-label">EPISODE SCORE</div>
+                  </div>
+                  <div class="score-card">
+                    <div style="font-size:1.3rem;font-weight:800;color:#94a3b8;line-height:1">{stages}</div>
+                    <div class="score-card-label">STAGES COMPLETED</div>
+                  </div>
+                  <div class="score-card" style="flex:2">
+                    <div style="color:#64748b;font-size:0.8rem;line-height:1.7;text-align:left">
+                      <strong style="color:{label_color}">{label}</strong><br>{description}
+                    </div>
+                  </div>
+                </div>"""
+
+            def run_baseline_cmp_with_card():
+                log_text = ""
+                for chunk in run_baseline_cmp():
+                    log_text = chunk
+                    yield chunk, ""
+                yield log_text, _make_scorecard(
+                    log_text, "Rule-Based Baseline", "#94a3b8",
+                    "Applies hardcoded fix sequences. Reliable on known bug patterns, but cannot adapt when the environment deviates."
+                )
+
+            def run_llm_cmp_with_card():
+                log_text = ""
+                for chunk in run_llm_cmp():
+                    log_text = chunk
+                    yield chunk, ""
+                yield log_text, _make_scorecard(
+                    log_text, "LLM Agent (Groq Llama 3.1 8B)", "#818cf8",
+                    "Reads the error log and current script, reasons about the root cause, and generates fix actions — no hardcoded rules."
+                )
+
+            run_baseline_cmp_btn.click(run_baseline_cmp_with_card, inputs=[], outputs=[baseline_cmp_log, baseline_scorecard])
+            run_llm_cmp_btn.click(run_llm_cmp_with_card, inputs=[], outputs=[llm_cmp_log, llm_scorecard])
 
 
         # ── DOCS TAB ─────────────────────────────────────────────────────────
